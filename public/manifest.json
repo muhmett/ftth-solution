@@ -1,0 +1,12 @@
+{
+  "name": "Percer — Gestion FTTH",
+  "short_name": "Percer",
+  "description": "Gestion des interventions fibre optique (FTTH, Partage In/Out, SAV)",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#ff7900",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
