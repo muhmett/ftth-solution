@@ -37,3 +37,57 @@ body {
 .badge {
   @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap;
 }
+
+/* ── Motif fibre optique ─────────────────────────────────────────────
+   Brins fins qui se rejoignent aux nœuds d'épissure, se croisent et
+   repartent ; des impulsions lumineuses parcourent les brins. */
+.fiber-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.fiber-line {
+  stroke: currentColor;
+  stroke-width: 1.1;
+  opacity: 0.16;
+}
+.fiber-pulse {
+  stroke: #ff7900;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-dasharray: 70 930; /* pathLength normalisé à 1000 */
+  stroke-dashoffset: 1000;
+  filter: drop-shadow(0 0 5px rgba(255, 121, 0, 0.85));
+  animation: fiber-travel linear infinite;
+}
+@keyframes fiber-travel {
+  from { stroke-dashoffset: 1000; }
+  to   { stroke-dashoffset: 0; }
+}
+.fiber-node {
+  fill: #ff7900;
+  animation: fiber-node-pulse 3.2s ease-in-out infinite;
+}
+.fiber-node-halo {
+  fill: none;
+  stroke: #ff7900;
+  stroke-width: 1;
+  opacity: 0.25;
+  animation: fiber-node-pulse 3.2s ease-in-out infinite;
+}
+@keyframes fiber-node-pulse {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.9; }
+}
+/* Variantes d'intensité */
+.fiber-bg--subtle .fiber-line { opacity: 0.1; }
+.fiber-bg--subtle .fiber-pulse { opacity: 0.35; stroke-width: 1.4; }
+.fiber-bg--subtle .fiber-node,
+.fiber-bg--subtle .fiber-node-halo { opacity: 0.15; animation: none; }
+.fiber-bg--bright .fiber-line { opacity: 0.22; }
+@media (prefers-reduced-motion: reduce) {
+  .fiber-pulse, .fiber-node, .fiber-node-halo { animation: none; }
+  .fiber-pulse { stroke-dasharray: none; stroke-dashoffset: 0; opacity: 0.12; filter: none; }
+}

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import FiberBackground from '@/components/FiberBackground';
 
 const NAV = [
   { href: '/admin', label: 'Tableau de bord', icon: '📊' },
@@ -56,7 +57,10 @@ export default function AdminShell({ user, children }) {
           <button onClick={logout} title="Déconnexion" className="text-gray-400 hover:text-white text-lg">⏻</button>
         </div>
       </aside>
-      <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">{children}</main>
+      <div className="relative flex-1 overflow-hidden">
+        <FiberBackground intensity="subtle" className="!fixed text-gray-500" />
+        <main className="relative p-4 md:p-8 max-w-7xl w-full mx-auto">{children}</main>
+      </div>
     </div>
   );
 }
