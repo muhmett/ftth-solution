@@ -50,9 +50,19 @@ SAV), déployée en ligne sur l'hébergement Higgsfield.
 
 ## Flux terrain (technicien)
 
-- **Feedback RDV** (obligatoire dans le flux manuel) : après l'appel du client,
-  le technicien note le résultat (RDV pris, injoignable, boîte vocale…) + un
-  nouveau RDV. Le coordinateur le voit immédiatement (💬 dans la liste).
+- **Feedback d'appel** (obligatoire dans le flux manuel) : après l'appel du
+  client, le technicien choisit un motif normalisé (RDV pris, injoignable,
+  boîte vocale, téléphone éteint…) + un nouveau RDV. Le coordinateur le voit
+  immédiatement (💬 dans la liste).
+  - **Preuve d'appel obligatoire** pour les motifs « sans réponse »
+    (injoignable / boîte vocale / téléphone éteint / faux numéro) : capture ou
+    courte vidéo de l'écran d'appel (stockée sur R2). Sans preuve → refusé.
+  - Le feedback remonte en « à valider » sur le dashboard admin ; la
+    coordination le **valide** après contrôle de la preuve.
+- **Alertes retard (>24h)** : ticket affecté/en cours non clôturé depuis plus de
+  24h → bannière + badge « ⏰ retard » côté technicien, et section dédiée sur le
+  dashboard admin. *(Notification in-app ; le push mobile FCM relève de la voie
+  native Capacitor.)*
 - **Position GPS exacte** : bouton « Enregistrer ma position ici » sur le point
   d'installation → « Ouvrir dans Maps » pointe sur les coordonnées, pas l'adresse
   contrat (souvent fausse). Utile surtout au SAV.
