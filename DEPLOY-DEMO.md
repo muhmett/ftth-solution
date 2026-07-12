@@ -88,13 +88,22 @@ somme des mouvements par détenteur (magasin = dépôt central, ou technicien).
 - **Catalogue** (`/admin/materiel`) : routeur, ONT, splitters 1x2 / 1x4 / 1x8 /
   1x16, téléphone, PTO, câble (au mètre) — extensible (ajout d'articles,
   numéro de série obligatoire pour routeur/ONT).
-- **Mouvements** (admin/coordination) : entrée magasin, **dotation** magasin →
-  technicien, retour, ajustement d'inventaire. Contrôle de solde avant chaque
-  sortie.
+- **Accusé de réception** (flux principal) : depuis « Mon matériel », le
+  technicien **déclare ce qu'il a pris / reçu** (articles + quantités + S/N) ;
+  l'accusé remonte au dashboard admin, la coordination **vérifie puis valide** —
+  le stock du technicien est alors crédité (refus possible). C'est la **seule**
+  façon dont le stock d'un technicien monte. Le technicien suit ses accusés
+  (en attente / validé / refusé).
+- **Mouvements magasin** (admin/coordination) : entrée magasin, dotation
+  magasin → technicien, retour, ajustement d'inventaire (avec contrôle de solde).
+- **Édition du catalogue** : la coordination modifie un article (nom, catégorie,
+  unité, numéro de série) ou le désactive.
 - **Consommation par le technicien** : sur le ticket, section « Matériel
   utilisé » — le technicien choisit dans **son** stock, saisit la quantité (+ le
   S/N pour routeur/ONT) ; son stock est décrémenté et la consommation reste
   liée au ticket.
+- **Stock de départ à zéro** : la base part vide ; tout le stock provient des
+  accusés de réception validés, et se consomme ticket par ticket.
 - **Suivi** : « Mon matériel » côté technicien ; stock magasin + stock par
   technicien + **historique de tous les mouvements** (qui, quoi, quand, ticket)
   côté admin.
