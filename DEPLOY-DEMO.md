@@ -80,6 +80,25 @@ SAV), déployée en ligne sur l'hébergement Higgsfield.
   l'opérateur.
 - **Impression** de la fiche ticket (masque nav/décor).
 
+## Gestion du matériel (stock) — traçabilité complète
+
+Registre (ledger) `stock_movements` = source de vérité ; les soldes sont la
+somme des mouvements par détenteur (magasin = dépôt central, ou technicien).
+
+- **Catalogue** (`/admin/materiel`) : routeur, ONT, splitters 1x2 / 1x4 / 1x8 /
+  1x16, téléphone, PTO, câble (au mètre) — extensible (ajout d'articles,
+  numéro de série obligatoire pour routeur/ONT).
+- **Mouvements** (admin/coordination) : entrée magasin, **dotation** magasin →
+  technicien, retour, ajustement d'inventaire. Contrôle de solde avant chaque
+  sortie.
+- **Consommation par le technicien** : sur le ticket, section « Matériel
+  utilisé » — le technicien choisit dans **son** stock, saisit la quantité (+ le
+  S/N pour routeur/ONT) ; son stock est décrémenté et la consommation reste
+  liée au ticket.
+- **Suivi** : « Mon matériel » côté technicien ; stock magasin + stock par
+  technicien + **historique de tous les mouvements** (qui, quoi, quand, ticket)
+  côté admin.
+
 ## Limite connue
 
 Cover du feed composée par programme (Pillow), pas par génération IA (compte
