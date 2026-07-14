@@ -108,6 +108,29 @@ somme des mouvements par détenteur (magasin = dépôt central, ou technicien).
   technicien + **historique de tous les mouvements** (qui, quoi, quand, ticket)
   côté admin.
 
+## Application mobile (PWA) & ergonomie
+
+- **PWA installable** : manifest + icônes (192/512/maskable) + service worker.
+  Depuis Chrome (Android) le lien s'installe sur l'écran d'accueil comme une
+  app (icône, plein écran, sans barre du navigateur) ; « Ajouter à l'écran
+  d'accueil » sur iOS.
+- **Déconnexion** déplacée dans un **menu déroulant** sur l'avatar (admin +
+  technicien) — plus de bouton visible en permanence.
+
+## Diagnostic IA (assistant terrain)
+
+- Sur un ticket, le technicien **prend une photo** du problème (réduite côté
+  client à 1200 px / JPEG pour économiser la data) + une **description**.
+- **Claude Haiku 4.5** (vision) répond : diagnostic probable, **vérifications à
+  faire** dans l'ordre, action — et **escalade** explicite si c'est un problème
+  d'infrastructure Orange (non réparable par le technicien seul). Si la photo
+  est floue, il demande de la refaire.
+- Chaque échange est **tracé** (`ai_diagnostics` + historique) et **consultable
+  par la coordination** sur le ticket.
+- Clé lue côté serveur depuis le secret **`ANTHROPIC_API_KEY`** — jamais
+  exposée au navigateur. Sans clé configurée, l'app affiche proprement « non
+  configuré » (à activer avant la démo IA).
+
 ## Limite connue
 
 Cover du feed composée par programme (Pillow), pas par génération IA (compte
