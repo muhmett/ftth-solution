@@ -8,7 +8,7 @@ import { BLOCKAGE_REASONS } from '@/lib/constants';
 const TABS = [
   { key: 'todo', label: 'À faire', statuses: 'AFFECTE,EN_COURS' },
   { key: 'blocked', label: 'Bloqués', statuses: 'BLOQUE' },
-  { key: 'done', label: 'Terminés', statuses: 'REALISE,VALIDE' },
+  { key: 'done', label: 'Terminés', statuses: 'REALISE,VALIDE_ST,VALIDE' },
 ];
 
 export default function TechHome() {

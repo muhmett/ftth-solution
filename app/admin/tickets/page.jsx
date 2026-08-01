@@ -5,30 +5,30 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { TICKET_STATUS, TICKET_TYPES } from '@/lib/constants';
 import { TypeBadge, StatusBadge } from '@/components/Badges';
+import { useIsPercer } from '@/components/UserContext';
 
 function TicketsInner() {
   const sp = useSearchParams();
+  const percer = useIsPercer();
   const [tickets, setTickets] = useState([]);
-  const [techs, setTechs] = useState([]);
+  const [equipes, setEquipes] = useState([]);
+  const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(new Set());
   const [assignTo, setAssignTo] = useState('');
+  const [dispatchTo, setDispatchTo] = useState('');
   const [filters, setFilters] = useState({
     status: sp.get('status') || '',
     type: sp.get('type') || '',
+    org: sp.get('org') || '',
     q: '',
-    technicien: '',
-    unassigned: false,
+    equipe: '',
   });
 
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (filters.status) params.set('status', filters.status);
-    if (filters.type) params.set('type', filters.type);
-    if (filters.q) params.set('q', filters.q);
-    if (filters.technicien) params.set('technicien', filters.technicien);
-    if (filters.unassigned) params.set('unassigned', '1');
+    for (const [k, v] of Object.entries(filters)) if (v) params.set(k, v);
     const res = await fetch('/api/tickets?' + params);
     const data = await res.json();
     setTickets(data.tickets || []);
@@ -38,8 +38,12 @@ function TicketsInner() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    fetch('/api/users?role=TECHNICIEN').then((r) => r.json()).then((d) => setTechs(d.users || []));
-  }, []);
+    fetch('/api/users?role=EQUIPE').then((r) => r.json()).then((d) => setEquipes(d.users || []));
+    if (percer) {
+      fetch('/api/organisations?type=SOUS_TRAITANT').then((r) => r.json())
+        .then((d) => setOrgs(d.organisations || []));
+    }
+  }, [percer]);
 
   function toggle(id) {
     const next = new Set(selected);
@@ -47,18 +51,24 @@ function TicketsInner() {
     setSelected(next);
   }
 
-  const assignable = tickets.filter((t) => ['NOUVEAU', 'AFFECTE', 'BLOQUE'].includes(t.status));
+  const selectable = tickets.filter((t) => !['VALIDE', 'ANNULE'].includes(t.status));
+  // Une équipe ne peut recevoir que des tickets déjà chez son sous-traitant
+  const eligibleEquipes = (() => {
+    const orgIds = new Set(tickets.filter((t) => selected.has(t.id)).map((t) => t.org_id));
+    if (orgIds.size !== 1) return equipes;
+    const [only] = [...orgIds];
+    return equipes.filter((e) => e.org_id === only);
+  })();
 
-  async function bulkAssign() {
-    if (!assignTo || !selected.size) return;
-    const res = await fetch('/api/tickets/assign', {
+  async function bulk(url, body, label) {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticket_ids: [...selected], technicien_id: Number(assignTo) }),
+      body: JSON.stringify({ ticket_ids: [...selected], ...body }),
     });
     const data = await res.json();
     if (!res.ok) { alert(data.error); return; }
-    alert(`${data.assigned} ticket(s) affecté(s) à ${data.technicien}`);
+    alert(label(data));
     load();
   }
 
@@ -69,15 +79,10 @@ function TicketsInner() {
         <span className="text-sm text-gray-500">{tickets.length} résultat(s)</span>
       </div>
 
-      {/* Filtres */}
       <div className="card p-3 flex flex-wrap gap-2 items-center">
-        <input
-          className="input max-w-xs"
-          placeholder="🔍 Réf, client, téléphone, adresse…"
-          value={filters.q}
-          onChange={(e) => setFilters({ ...filters, q: e.target.value })}
-        />
-        <select className="input max-w-[180px]" value={filters.status}
+        <input className="input max-w-xs" placeholder="🔍 Réf, client, téléphone, adresse…"
+          value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
+        <select className="input max-w-[190px]" value={filters.status}
           onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
           <option value="">Tous statuts</option>
           {Object.entries(TICKET_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -87,61 +92,85 @@ function TicketsInner() {
           <option value="">Toutes activités</option>
           {Object.entries(TICKET_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <select className="input max-w-[180px]" value={filters.technicien}
-          onChange={(e) => setFilters({ ...filters, technicien: e.target.value, unassigned: false })}>
-          <option value="">Tous techniciens</option>
-          {techs.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        {percer && (
+          <select className="input max-w-[190px]" value={filters.org}
+            onChange={(e) => setFilters({ ...filters, org: e.target.value })}>
+            <option value="">Tous sous-traitants</option>
+            {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        )}
+        <select className="input max-w-[190px]" value={filters.equipe}
+          onChange={(e) => setFilters({ ...filters, equipe: e.target.value })}>
+          <option value="">Toutes équipes</option>
+          {equipes.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
         </select>
-        <label className="flex items-center gap-1 text-sm">
-          <input type="checkbox" checked={filters.unassigned}
-            onChange={(e) => setFilters({ ...filters, unassigned: e.target.checked, technicien: '' })} />
-          Non affectés
-        </label>
       </div>
 
-      {/* Barre d'affectation en masse */}
       {selected.size > 0 && (
         <div className="card p-3 flex flex-wrap items-center gap-3 bg-brand-50 border-brand-500">
           <span className="font-semibold text-sm">{selected.size} sélectionné(s)</span>
+          {percer && (
+            <>
+              <select className="input max-w-[220px]" value={dispatchTo}
+                onChange={(e) => setDispatchTo(e.target.value)}>
+                <option value="">Répartir vers…</option>
+                {orgs.map((o) => (
+                  <option key={o.id} value={o.id}>{o.name} ({o.tickets_actifs} actifs)</option>
+                ))}
+              </select>
+              <button className="btn-primary" disabled={!dispatchTo}
+                onClick={() => bulk('/api/tickets/dispatch', { org_id: Number(dispatchTo) },
+                  (d) => `${d.dispatched} ticket(s) répartis vers ${d.organisation}`)}>
+                🚚 Répartir
+              </button>
+              <span className="text-gray-300">|</span>
+            </>
+          )}
           <select className="input max-w-[220px]" value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
-            <option value="">Choisir un technicien…</option>
-            {techs.map((t) => (
-              <option key={t.id} value={t.id}>{t.name} ({t.open_tickets} en cours)</option>
+            <option value="">Affecter à une équipe…</option>
+            {eligibleEquipes.map((e) => (
+              <option key={e.id} value={e.id}>{e.name} ({e.open_tickets} en cours)</option>
             ))}
           </select>
-          <button className="btn-primary" onClick={bulkAssign} disabled={!assignTo}>Affecter</button>
+          <button className="btn-secondary" disabled={!assignTo}
+            onClick={() => bulk('/api/tickets/assign', { equipe_id: Number(assignTo) },
+              (d) => `${d.assigned} ticket(s) affectés à ${d.equipe}`)}>
+            Affecter
+          </button>
         </div>
       )}
 
-      {/* Tableau */}
       <div className="card overflow-x-auto">
-        <table className="w-full text-sm min-w-[800px]">
+        <table className="w-full text-sm min-w-[900px]">
           <thead>
             <tr className="text-left text-xs text-gray-500 border-b bg-gray-50">
               <th className="p-3 w-8">
                 <input type="checkbox"
-                  checked={assignable.length > 0 && assignable.every((t) => selected.has(t.id))}
-                  onChange={(e) => setSelected(e.target.checked ? new Set(assignable.map((t) => t.id)) : new Set())} />
+                  checked={selectable.length > 0 && selectable.every((t) => selected.has(t.id))}
+                  onChange={(e) => setSelected(e.target.checked ? new Set(selectable.map((t) => t.id)) : new Set())} />
               </th>
               <th className="p-3">Référence</th>
               <th className="p-3">Activité</th>
               <th className="p-3">Client</th>
               <th className="p-3">Adresse</th>
               <th className="p-3">RDV</th>
-              <th className="p-3">Technicien</th>
+              {percer && <th className="p-3">Sous-traitant</th>}
+              <th className="p-3">Équipe</th>
               <th className="p-3">Statut</th>
               <th className="p-3">📷</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={9} className="p-6 text-center text-gray-500">Chargement…</td></tr>}
+            {loading && <tr><td colSpan={10} className="p-6 text-center text-gray-500">Chargement…</td></tr>}
             {!loading && tickets.length === 0 && (
-              <tr><td colSpan={9} className="p-6 text-center text-gray-500">Aucun ticket. Importez un fichier Excel pour commencer.</td></tr>
+              <tr><td colSpan={10} className="p-6 text-center text-gray-500">
+                Aucun ticket. Importez un fichier Excel pour commencer.
+              </td></tr>
             )}
             {tickets.map((t) => (
               <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50">
                 <td className="p-3">
-                  {['NOUVEAU', 'AFFECTE', 'BLOQUE'].includes(t.status) && (
+                  {!['VALIDE', 'ANNULE'].includes(t.status) && (
                     <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} />
                   )}
                 </td>
@@ -155,9 +184,12 @@ function TicketsInner() {
                   <div className="font-medium">{t.client_name || '—'}</div>
                   <div className="text-xs text-gray-500">{t.client_phone}</div>
                 </td>
-                <td className="p-3 max-w-[220px] truncate" title={t.address}>{t.address || '—'}</td>
+                <td className="p-3 max-w-[200px] truncate" title={t.address}>{t.address || '—'}</td>
                 <td className="p-3 whitespace-nowrap">{t.rdv_date || '—'}</td>
-                <td className="p-3">{t.technicien_name || <span className="text-gray-400">Non affecté</span>}</td>
+                {percer && (
+                  <td className="p-3">{t.org_name || <span className="text-gray-400">Non réparti</span>}</td>
+                )}
+                <td className="p-3">{t.equipe_name || <span className="text-gray-400">—</span>}</td>
                 <td className="p-3"><StatusBadge status={t.status} /></td>
                 <td className="p-3 text-center">{t.photo_count > 0 ? t.photo_count : ''}</td>
               </tr>

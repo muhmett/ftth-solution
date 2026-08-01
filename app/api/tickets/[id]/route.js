@@ -1,13 +1,16 @@
 import { getDb, addHistory, touchTicket } from '@/lib/db';
-import { requireUser, apiHandler } from '@/lib/auth';
+import { requireUser, apiHandler, isPercer, isCoord, assertTicketAccess } from '@/lib/auth';
 import { REQUIRED_PHOTOS, BLOCKAGE_REASONS } from '@/lib/constants';
 
 function loadTicket(db, id) {
   return db.prepare(`
-    SELECT t.*, u.name AS technicien_name, u.phone AS technicien_phone, v.name AS validated_by_name
+    SELECT t.*, u.name AS equipe_name, u.phone AS equipe_phone, u.member1, u.member2,
+           o.name AS org_name, v.name AS validated_by_name, vs.name AS validated_st_by_name
     FROM tickets t
     LEFT JOIN users u ON u.id = t.assigned_to
+    LEFT JOIN organizations o ON o.id = t.org_id
     LEFT JOIN users v ON v.id = t.validated_by
+    LEFT JOIN users vs ON vs.id = t.validated_st_by
     WHERE t.id = ?`).get(id);
 }
 
@@ -17,9 +20,8 @@ export const GET = apiHandler(async (req, { params }) => {
   const db = getDb();
   const ticket = loadTicket(db, Number(params.id));
   if (!ticket) return Response.json({ error: 'Ticket introuvable' }, { status: 404 });
-  if (user.role === 'TECHNICIEN' && ticket.assigned_to !== user.id) {
-    return Response.json({ error: 'Accès refusé' }, { status: 403 });
-  }
+  assertTicketAccess(user, ticket);
+
   const photos = db.prepare(
     'SELECT id, photo_type, file_path, created_at FROM ticket_photos WHERE ticket_id = ? ORDER BY created_at'
   ).all(ticket.id);
@@ -30,7 +32,9 @@ export const GET = apiHandler(async (req, { params }) => {
   return Response.json({ ticket, photos, history });
 });
 
-// Actions sur un ticket : { action: 'assign'|'start'|'realize'|'block'|'validate'|'reject'|'unblock'|'cancel'|'update', ... }
+// Actions sur un ticket. Le contrôle qualité se fait à deux niveaux :
+// l'équipe réalise, le coordinateur du sous-traitant contrôle, Percer prononce
+// la recette finale (seul statut facturable).
 export const PATCH = apiHandler(async (req, { params }) => {
   const user = requireUser();
   const id = Number(params.id);
@@ -38,19 +42,38 @@ export const PATCH = apiHandler(async (req, { params }) => {
   const db = getDb();
   const ticket = loadTicket(db, id);
   if (!ticket) return Response.json({ error: 'Ticket introuvable' }, { status: 404 });
+  assertTicketAccess(user, ticket);
 
-  const isManager = ['ADMIN', 'COORDINATEUR'].includes(user.role);
+  const percer = isPercer(user);
+  const coord = isCoord(user);
   const isMine = ticket.assigned_to === user.id;
   const fail = (msg, status = 400) => Response.json({ error: msg }, { status });
 
   switch (body.action) {
+    case 'dispatch': {
+      // Répartition d'un ticket vers un sous-traitant
+      if (!percer) return fail('Accès refusé', 403);
+      if (!['NOUVEAU', 'DISPATCHE', 'BLOQUE'].includes(ticket.status)) {
+        return fail(`Impossible de répartir un ticket en statut ${ticket.status}`);
+      }
+      const org = db.prepare("SELECT * FROM organizations WHERE id = ? AND type = 'SOUS_TRAITANT' AND active = 1")
+        .get(Number(body.org_id));
+      if (!org) return fail('Sous-traitant invalide');
+      db.prepare(`UPDATE tickets SET org_id = ?, status = 'DISPATCHE', assigned_to = NULL,
+        dispatched_at = datetime('now') WHERE id = ?`).run(org.id, id);
+      addHistory(id, 'REPARTITION', `Réparti vers ${org.name}`, user.id);
+      break;
+    }
     case 'assign': {
-      if (!isManager) return fail('Accès refusé', 403);
-      const techId = Number(body.technicien_id);
-      const tech = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'TECHNICIEN' AND active = 1").get(techId);
-      if (!tech) return fail('Technicien invalide');
-      db.prepare("UPDATE tickets SET assigned_to = ?, status = 'AFFECTE' WHERE id = ?").run(techId, id);
-      addHistory(id, 'AFFECTATION', `Affecté à ${tech.name}`, user.id);
+      // Affectation à une équipe du sous-traitant détenteur
+      if (!coord) return fail('Accès refusé', 403);
+      if (!ticket.org_id) return fail('Le ticket doit d\'abord être réparti vers un sous-traitant');
+      const equipe = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'EQUIPE' AND active = 1")
+        .get(Number(body.equipe_id));
+      if (!equipe) return fail('Équipe invalide');
+      if (equipe.org_id !== ticket.org_id) return fail('Cette équipe appartient à une autre société');
+      db.prepare("UPDATE tickets SET assigned_to = ?, status = 'AFFECTE' WHERE id = ?").run(equipe.id, id);
+      addHistory(id, 'AFFECTATION', `Affecté à ${equipe.name}`, user.id);
       break;
     }
     case 'start': {
@@ -61,18 +84,16 @@ export const PATCH = apiHandler(async (req, { params }) => {
       break;
     }
     case 'realize': {
-      // Clôture par le technicien : photos obligatoires + mesure optique pour la production
+      // Clôture par l'équipe : photos obligatoires + mesure optique en production
       if (!isMine) return fail('Ce ticket ne vous est pas affecté', 403);
       if (!['EN_COURS', 'AFFECTE'].includes(ticket.status)) {
         return fail(`Impossible de clôturer un ticket en statut ${ticket.status}`);
       }
       const photos = db.prepare('SELECT DISTINCT photo_type FROM ticket_photos WHERE ticket_id = ?').all(id)
         .map((p) => p.photo_type);
-      const required = REQUIRED_PHOTOS[ticket.type] || [];
-      const missing = required.filter((r) => !photos.includes(r));
-      if (missing.length) {
-        return fail(`Photos obligatoires manquantes : ${missing.join(', ')}`);
-      }
+      const missing = (REQUIRED_PHOTOS[ticket.type] || []).filter((r) => !photos.includes(r));
+      if (missing.length) return fail(`Photos obligatoires manquantes : ${missing.join(', ')}`);
+
       const isProd = ticket.type !== 'SAV';
       const power = body.power_db !== undefined && body.power_db !== '' ? Number(body.power_db) : null;
       if (isProd && (power === null || Number.isNaN(power))) {
@@ -89,8 +110,41 @@ export const PATCH = apiHandler(async (req, { params }) => {
       addHistory(id, 'REALISATION', power !== null ? `Réalisé — puissance ${power} dB` : 'Réalisé', user.id);
       break;
     }
+    case 'validate': {
+      if (!coord) return fail('Accès refusé', 403);
+      if (ticket.status === 'REALISE') {
+        // Contrôle qualité interne du sous-traitant
+        db.prepare(`UPDATE tickets SET status = 'VALIDE_ST', validated_st_at = datetime('now'),
+          validated_st_by = ? WHERE id = ?`).run(user.id, id);
+        addHistory(id, 'CONTROLE_ST', body.comment || 'Contrôlé par le sous-traitant', user.id);
+      } else if (ticket.status === 'VALIDE_ST') {
+        // Recette finale : seul Percer peut la prononcer
+        if (!percer) return fail('Seul Percer peut prononcer la recette finale', 403);
+        db.prepare(`UPDATE tickets SET status = 'VALIDE', validated_at = datetime('now'),
+          validated_by = ? WHERE id = ?`).run(user.id, id);
+        addHistory(id, 'RECETTE', body.comment || 'Recette validée par Percer', user.id);
+      } else {
+        return fail('Ce ticket n\'est pas en attente de contrôle');
+      }
+      break;
+    }
+    case 'reject': {
+      // Preuves insuffisantes : le ticket repart chez l'équipe
+      if (!coord) return fail('Accès refusé', 403);
+      if (!['REALISE', 'VALIDE_ST'].includes(ticket.status)) {
+        return fail('Seul un ticket réalisé ou contrôlé peut être rejeté');
+      }
+      if (ticket.status === 'VALIDE_ST' && !percer) {
+        return fail('Ce ticket est déjà contrôlé, seul Percer peut le rejeter', 403);
+      }
+      const from = ticket.status === 'VALIDE_ST' ? 'Percer' : 'la coordination';
+      db.prepare(`UPDATE tickets SET status = 'AFFECTE', realized_at = NULL,
+        validated_st_at = NULL, validated_st_by = NULL WHERE id = ?`).run(id);
+      addHistory(id, 'REJET', `Rejeté par ${from} — ${body.comment || 'preuves insuffisantes'}`, user.id);
+      break;
+    }
     case 'block': {
-      if (!isMine && !isManager) return fail('Accès refusé', 403);
+      if (!isMine && !coord) return fail('Accès refusé', 403);
       if (!BLOCKAGE_REASONS[body.reason]) return fail('Motif de blocage invalide');
       if (['VALIDE', 'ANNULE'].includes(ticket.status)) return fail('Ticket déjà clôturé');
       db.prepare(`UPDATE tickets SET status = 'BLOQUE', blockage_reason = ?, blockage_comment = ?,
@@ -98,27 +152,10 @@ export const PATCH = apiHandler(async (req, { params }) => {
       addHistory(id, 'BLOCAGE', `${BLOCKAGE_REASONS[body.reason]}${body.comment ? ' — ' + body.comment : ''}`, user.id);
       break;
     }
-    case 'validate': {
-      if (!isManager) return fail('Accès refusé', 403);
-      if (ticket.status !== 'REALISE') return fail('Seul un ticket réalisé peut être validé');
-      db.prepare(`UPDATE tickets SET status = 'VALIDE', validated_at = datetime('now'), validated_by = ? WHERE id = ?`)
-        .run(user.id, id);
-      addHistory(id, 'VALIDATION', body.comment || 'Ticket validé par la coordination', user.id);
-      break;
-    }
-    case 'reject': {
-      // Retour au technicien si les preuves sont insuffisantes
-      if (!isManager) return fail('Accès refusé', 403);
-      if (ticket.status !== 'REALISE') return fail('Seul un ticket réalisé peut être rejeté');
-      db.prepare("UPDATE tickets SET status = 'AFFECTE', realized_at = NULL WHERE id = ?").run(id);
-      addHistory(id, 'REJET', body.comment || 'Preuves insuffisantes — à refaire', user.id);
-      break;
-    }
     case 'unblock': {
-      // Replanification d'un ticket bloqué
-      if (!isManager) return fail('Accès refusé', 403);
+      if (!coord) return fail('Accès refusé', 403);
       if (ticket.status !== 'BLOQUE') return fail('Ticket non bloqué');
-      const newStatus = ticket.assigned_to ? 'AFFECTE' : 'NOUVEAU';
+      const newStatus = ticket.assigned_to ? 'AFFECTE' : ticket.org_id ? 'DISPATCHE' : 'NOUVEAU';
       db.prepare(`UPDATE tickets SET status = ?, blockage_reason = '', blockage_comment = '',
         blocked_at = NULL, rdv_date = COALESCE(NULLIF(?, ''), rdv_date) WHERE id = ?`)
         .run(newStatus, body.rdv_date || '', id);
@@ -126,13 +163,14 @@ export const PATCH = apiHandler(async (req, { params }) => {
       break;
     }
     case 'cancel': {
-      if (!isManager) return fail('Accès refusé', 403);
+      // L'annulation vient du donneur d'ordre (décision client / opérateur)
+      if (!percer) return fail('Seul Percer peut annuler un ticket', 403);
       db.prepare("UPDATE tickets SET status = 'ANNULE' WHERE id = ?").run(id);
       addHistory(id, 'ANNULATION', body.comment || 'Ticket annulé', user.id);
       break;
     }
     case 'update': {
-      if (!isManager) return fail('Accès refusé', 403);
+      if (!coord) return fail('Accès refusé', 403);
       const fields = ['client_name', 'client_phone', 'address', 'city', 'zone', 'pbo', 'pto', 'nd', 'operator', 'rdv_date', 'notes'];
       const sets = [];
       const vals = [];

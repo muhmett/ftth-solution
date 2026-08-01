@@ -147,12 +147,17 @@ export default function TechTicketDetail() {
 
       {ticket.status === 'REALISE' && (
         <div className="card border-lime-300 bg-lime-50 p-4 text-sm text-lime-800 font-medium">
-          ✓ Intervention clôturée — en attente de validation par la coordination.
+          ✓ Intervention clôturée — en attente de contrôle par la coordination.
+        </div>
+      )}
+      {ticket.status === 'VALIDE_ST' && (
+        <div className="card border-teal-300 bg-teal-50 p-4 text-sm text-teal-800 font-medium">
+          ✓ Contrôlé par la coordination — en attente de recette Percer.
         </div>
       )}
       {ticket.status === 'VALIDE' && (
         <div className="card border-green-300 bg-green-50 p-4 text-sm text-green-800 font-medium">
-          ✅ Ticket validé. Bon travail !
+          ✅ Recette validée par Percer. Bon travail !
         </div>
       )}
 

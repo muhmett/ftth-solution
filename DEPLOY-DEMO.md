@@ -18,8 +18,10 @@ de démonstration du seed) sur l'hébergement Higgsfield.
 2. Porter l'application sur la stack de l'hébergeur : React 19 + TanStack Start,
    un seul Worker Cloudflare — D1 à la place de better-sqlite3, R2 pour les
    photos, JWT via WebCrypto (pas de `jsonwebtoken`), hash PBKDF2/WebCrypto
-   (pas de bcrypt), `xlsx` fonctionne dans le Worker. Reprendre les règles
-   métier de `lib/constants.js` et les écrans `app/` tels quels (Tailwind),
-   y compris le motif fibre (`components/FiberBackground.jsx`).
-3. Seeder les comptes de démonstration (voir README) via migration D1.
+   (pas de bcrypt), `xlsx` fonctionne dans le Worker. Reprendre le schéma
+   (`lib/schema.mjs`), les règles métier (`lib/constants.js`) et **surtout les
+   portées de `lib/auth.js`** : le cloisonnement entre sous-traitants doit être
+   reporté à l'identique sur chaque requête. Les écrans `app/` se reprennent
+   tels quels (Tailwind), motif fibre inclus (`components/FiberBackground.jsx`).
+3. Seeder les sociétés et comptes de démonstration (voir README) via migration D1.
 4. Cover + métadonnées (`app/src/app-meta.json`) puis `deploy_website`.

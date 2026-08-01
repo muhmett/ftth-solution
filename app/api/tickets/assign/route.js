@@ -1,30 +1,37 @@
 import { getDb, addHistory } from '@/lib/db';
-import { requireUser, apiHandler } from '@/lib/auth';
+import { requireUser, apiHandler, isPercer } from '@/lib/auth';
+import { COORD_ROLES } from '@/lib/constants';
 
-// Affectation en masse : { ticket_ids: [..], technicien_id }
+// Affectation en masse à une équipe : { ticket_ids, equipe_id }
+// L'équipe et les tickets doivent appartenir à la même société.
 export const POST = apiHandler(async (req) => {
-  const user = requireUser(['ADMIN', 'COORDINATEUR']);
-  const { ticket_ids, technicien_id } = await req.json();
+  const user = requireUser(COORD_ROLES);
+  const { ticket_ids, equipe_id } = await req.json();
   if (!Array.isArray(ticket_ids) || !ticket_ids.length) {
     return Response.json({ error: 'Aucun ticket sélectionné' }, { status: 400 });
   }
   const db = getDb();
-  const tech = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'TECHNICIEN' AND active = 1").get(Number(technicien_id));
-  if (!tech) return Response.json({ error: 'Technicien invalide' }, { status: 400 });
+  const equipe = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'EQUIPE' AND active = 1")
+    .get(Number(equipe_id));
+  if (!equipe) return Response.json({ error: 'Équipe invalide' }, { status: 400 });
+  if (!isPercer(user) && equipe.org_id !== user.org_id) {
+    return Response.json({ error: 'Accès refusé' }, { status: 403 });
+  }
 
+  // Le filtre sur org_id garantit qu'un ticket d'une autre société ne peut pas
+  // être détourné, même si son identifiant est fourni volontairement.
   const update = db.prepare(`
     UPDATE tickets SET assigned_to = ?, status = 'AFFECTE', updated_at = datetime('now')
-    WHERE id = ? AND status IN ('NOUVEAU','AFFECTE','BLOQUE')`);
+    WHERE id = ? AND org_id = ? AND status IN ('DISPATCHE','AFFECTE','BLOQUE')`);
   let count = 0;
-  const run = db.transaction(() => {
+  db.transaction(() => {
     for (const tid of ticket_ids) {
-      const res = update.run(tech.id, Number(tid));
-      if (res.changes) {
-        addHistory(Number(tid), 'AFFECTATION', `Affecté à ${tech.name}`, user.id);
+      if (update.run(equipe.id, Number(tid), equipe.org_id).changes) {
+        addHistory(Number(tid), 'AFFECTATION', `Affecté à ${equipe.name}`, user.id);
         count++;
       }
     }
-  });
-  run();
-  return Response.json({ assigned: count, technicien: tech.name });
+  })();
+
+  return Response.json({ assigned: count, equipe: equipe.name });
 });

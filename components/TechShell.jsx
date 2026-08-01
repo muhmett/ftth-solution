@@ -20,7 +20,10 @@ export default function TechShell({ user, children }) {
         <div className="relative w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center font-black">P</div>
         <div className="relative flex-1 min-w-0">
           <div className="font-bold text-sm leading-none truncate">{user.name}</div>
-          <div className="text-[11px] text-gray-400">Technicien{user.zone ? ` · ${user.zone}` : ''}</div>
+          <div className="text-[11px] text-gray-400 truncate">
+            {[user.member1, user.member2].filter(Boolean).join(' + ') || user.org_name}
+            {user.zone ? ` · ${user.zone}` : ''}
+          </div>
         </div>
         <button onClick={logout} className="relative text-gray-400 hover:text-white" title="Déconnexion">⏻</button>
       </header>

@@ -5,14 +5,18 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { TICKET_TYPES, BLOCKAGE_REASONS, PHOTO_TYPES } from '@/lib/constants';
 import { TypeBadge, StatusBadge } from '@/components/Badges';
+import { useIsPercer } from '@/components/UserContext';
 
 export default function AdminTicketDetail() {
   const { id } = useParams();
   const router = useRouter();
+  const percer = useIsPercer();
   const [data, setData] = useState(null);
-  const [techs, setTechs] = useState([]);
+  const [equipes, setEquipes] = useState([]);
+  const [orgs, setOrgs] = useState([]);
   const [busy, setBusy] = useState(false);
   const [assignTo, setAssignTo] = useState('');
+  const [dispatchTo, setDispatchTo] = useState('');
   const [comment, setComment] = useState('');
 
   const load = useCallback(async () => {
@@ -23,8 +27,12 @@ export default function AdminTicketDetail() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    fetch('/api/users?role=TECHNICIEN').then((r) => r.json()).then((d) => setTechs(d.users || []));
-  }, []);
+    fetch('/api/users?role=EQUIPE').then((r) => r.json()).then((d) => setEquipes(d.users || []));
+    if (percer) {
+      fetch('/api/organisations?type=SOUS_TRAITANT').then((r) => r.json())
+        .then((d) => setOrgs(d.organisations || []));
+    }
+  }, [percer]);
 
   async function act(action, extra = {}) {
     setBusy(true);
@@ -46,6 +54,9 @@ export default function AdminTicketDetail() {
   if (!data) return <p className="text-gray-500">Chargement…</p>;
   const { ticket, photos, history } = data;
   const extra = JSON.parse(ticket.extra || '{}');
+  const canDispatch = percer && ['NOUVEAU', 'DISPATCHE', 'BLOQUE'].includes(ticket.status);
+  const canAssign = ticket.org_id && ['DISPATCHE', 'AFFECTE', 'BLOQUE'].includes(ticket.status);
+  const teamsOfOrg = equipes.filter((e) => e.org_id === ticket.org_id);
 
   return (
     <div className="space-y-6">
@@ -57,7 +68,6 @@ export default function AdminTicketDetail() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Infos */}
         <div className="lg:col-span-2 space-y-6">
           <div className="card p-5">
             <h2 className="font-bold mb-4">Informations client & réseau</h2>
@@ -82,23 +92,23 @@ export default function AdminTicketDetail() {
               <details className="mt-4 text-xs text-gray-500">
                 <summary className="cursor-pointer font-semibold">Autres colonnes importées</summary>
                 <dl className="grid sm:grid-cols-2 gap-2 mt-2">
-                  {Object.entries(extra).map(([k, v]) => <Info key={k} label={k} value={String(v)} />)}
+                  {Object.entries(extra).map(([k, val]) => <Info key={k} label={k} value={String(val)} />)}
                 </dl>
               </details>
             )}
           </div>
 
-          {/* Blocage */}
           {ticket.status === 'BLOQUE' && (
             <div className="card border-red-300 bg-red-50 p-5">
               <h2 className="font-bold text-red-800 mb-1">🚫 Ticket bloqué</h2>
-              <p className="text-sm text-red-900 font-semibold">{BLOCKAGE_REASONS[ticket.blockage_reason] || ticket.blockage_reason}</p>
+              <p className="text-sm text-red-900 font-semibold">
+                {BLOCKAGE_REASONS[ticket.blockage_reason] || ticket.blockage_reason}
+              </p>
               {ticket.blockage_comment && <p className="text-sm text-red-800 mt-1">{ticket.blockage_comment}</p>}
               <p className="text-xs text-red-600 mt-2">Depuis : {ticket.blocked_at}</p>
             </div>
           )}
 
-          {/* Photos */}
           <div className="card p-5">
             <h2 className="font-bold mb-4">Photos de preuve ({photos.length})</h2>
             {photos.length === 0 && <p className="text-sm text-gray-500">Aucune photo pour le moment.</p>}
@@ -109,13 +119,14 @@ export default function AdminTicketDetail() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/api/photos/${p.file_path}`} alt={p.photo_type}
                     className="w-full h-32 object-cover group-hover:opacity-90" />
-                  <div className="px-2 py-1 text-xs font-semibold bg-gray-50">{PHOTO_TYPES[p.photo_type] || p.photo_type}</div>
+                  <div className="px-2 py-1 text-xs font-semibold bg-gray-50">
+                    {PHOTO_TYPES[p.photo_type] || p.photo_type}
+                  </div>
                 </a>
               ))}
             </div>
           </div>
 
-          {/* Historique */}
           <div className="card p-5">
             <h2 className="font-bold mb-4">Historique</h2>
             <ol className="space-y-2 text-sm">
@@ -133,24 +144,46 @@ export default function AdminTicketDetail() {
           </div>
         </div>
 
-        {/* Panneau actions */}
         <div className="space-y-4">
           <div className="card p-5 space-y-3">
             <h2 className="font-bold">Actions</h2>
-            <div className="text-sm">
-              Technicien : <span className="font-semibold">{ticket.technicien_name || 'Non affecté'}</span>
-            </div>
+            <dl className="text-sm space-y-1">
+              {percer && (
+                <div>Sous-traitant : <span className="font-semibold">{ticket.org_name || 'Non réparti'}</span></div>
+              )}
+              <div>
+                Équipe : <span className="font-semibold">{ticket.equipe_name || 'Non affectée'}</span>
+                {(ticket.member1 || ticket.member2) && (
+                  <span className="text-gray-500 text-xs"> ({[ticket.member1, ticket.member2].filter(Boolean).join(' + ')})</span>
+                )}
+              </div>
+            </dl>
 
-            {['NOUVEAU', 'AFFECTE', 'BLOQUE'].includes(ticket.status) && (
-              <div className="space-y-2">
+            {canDispatch && (
+              <div className="space-y-2 border-t pt-3">
+                <label className="label">Répartition</label>
+                <select className="input" value={dispatchTo} onChange={(e) => setDispatchTo(e.target.value)}>
+                  <option value="">Choisir un sous-traitant…</option>
+                  {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+                <button className="btn-primary w-full" disabled={!dispatchTo || busy}
+                  onClick={() => act('dispatch', { org_id: Number(dispatchTo) })}>
+                  🚚 {ticket.org_id ? 'Réattribuer' : 'Répartir'}
+                </button>
+              </div>
+            )}
+
+            {canAssign && (
+              <div className="space-y-2 border-t pt-3">
+                <label className="label">Affectation terrain</label>
                 <select className="input" value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
-                  <option value="">Affecter à…</option>
-                  {techs.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.open_tickets} en cours)</option>
+                  <option value="">Choisir une équipe…</option>
+                  {teamsOfOrg.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name} ({e.open_tickets} en cours)</option>
                   ))}
                 </select>
-                <button className="btn-primary w-full" disabled={!assignTo || busy}
-                  onClick={() => act('assign', { technicien_id: Number(assignTo) })}>
+                <button className="btn-secondary w-full" disabled={!assignTo || busy}
+                  onClick={() => act('assign', { equipe_id: Number(assignTo) })}>
                   {ticket.assigned_to ? 'Réaffecter' : 'Affecter'}
                 </button>
               </div>
@@ -161,13 +194,31 @@ export default function AdminTicketDetail() {
 
             {ticket.status === 'REALISE' && (
               <div className="grid grid-cols-2 gap-2">
-                <button className="btn-success" disabled={busy} onClick={() => act('validate')}>✓ Valider</button>
+                <button className="btn-success" disabled={busy} onClick={() => act('validate')}>
+                  ✓ Contrôler
+                </button>
                 <button className="btn-danger" disabled={busy}
-                  onClick={() => { if (confirm('Renvoyer ce ticket au technicien ?')) act('reject'); }}>
+                  onClick={() => { if (confirm('Renvoyer ce ticket à l\'équipe ?')) act('reject'); }}>
                   ✗ Rejeter
                 </button>
               </div>
             )}
+
+            {ticket.status === 'VALIDE_ST' && (percer ? (
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn-success" disabled={busy} onClick={() => act('validate')}>
+                  ✓ Prononcer la recette
+                </button>
+                <button className="btn-danger" disabled={busy}
+                  onClick={() => { if (confirm('Rejeter la recette ?')) act('reject'); }}>
+                  ✗ Rejeter
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-teal-700 bg-teal-50 rounded-lg p-3">
+                Contrôlé le {ticket.validated_st_at} — en attente de recette Percer.
+              </p>
+            ))}
 
             {ticket.status === 'BLOQUE' && (
               <button className="btn-primary w-full" disabled={busy} onClick={() => act('unblock')}>
@@ -175,7 +226,7 @@ export default function AdminTicketDetail() {
               </button>
             )}
 
-            {!['VALIDE', 'ANNULE'].includes(ticket.status) && (
+            {percer && !['VALIDE', 'ANNULE'].includes(ticket.status) && (
               <button className="btn-secondary w-full text-red-600" disabled={busy}
                 onClick={() => { if (confirm('Annuler définitivement ce ticket ?')) act('cancel'); }}>
                 Annuler le ticket
@@ -184,7 +235,8 @@ export default function AdminTicketDetail() {
 
             {ticket.status === 'VALIDE' && (
               <p className="text-sm text-green-700 bg-green-50 rounded-lg p-3">
-                ✓ Validé le {ticket.validated_at}{ticket.validated_by_name ? ` par ${ticket.validated_by_name}` : ''}
+                ✓ Recette validée le {ticket.validated_at}
+                {ticket.validated_by_name ? ` par ${ticket.validated_by_name}` : ''} — facturable.
               </p>
             )}
           </div>

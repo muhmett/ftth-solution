@@ -7,6 +7,6 @@ export const dynamic = 'force-dynamic';
 export default function AdminLayout({ children }) {
   const user = getSessionUser();
   if (!user) redirect('/login');
-  if (user.role === 'TECHNICIEN') redirect('/tech');
+  if (user.role === 'EQUIPE') redirect('/tech');
   return <AdminShell user={user}>{children}</AdminShell>;
 }

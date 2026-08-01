@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { getDb, getUploadDir, addHistory, touchTicket } from '@/lib/db';
-import { requireUser, apiHandler } from '@/lib/auth';
+import { requireUser, apiHandler, assertTicketAccess, isCoord } from '@/lib/auth';
 import { PHOTO_TYPES } from '@/lib/constants';
 
 const MAX_SIZE = 15 * 1024 * 1024; // 15 Mo
@@ -15,10 +15,7 @@ export const POST = apiHandler(async (req, { params }) => {
   const db = getDb();
   const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
   if (!ticket) return Response.json({ error: 'Ticket introuvable' }, { status: 404 });
-  const isManager = ['ADMIN', 'COORDINATEUR'].includes(user.role);
-  if (!isManager && ticket.assigned_to !== user.id) {
-    return Response.json({ error: 'Accès refusé' }, { status: 403 });
-  }
+  assertTicketAccess(user, ticket);
 
   const form = await req.formData();
   const file = form.get('file');
@@ -32,8 +29,7 @@ export const POST = apiHandler(async (req, { params }) => {
   const name = `t${id}_${photoType}_${crypto.randomBytes(6).toString('hex')}${ext}`;
   const dir = path.join(getUploadDir(), String(id));
   fs.mkdirSync(dir, { recursive: true });
-  const buf = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(path.join(dir, name), buf);
+  fs.writeFileSync(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
 
   const relPath = `${id}/${name}`;
   const info = db.prepare(
@@ -50,12 +46,15 @@ export const DELETE = apiHandler(async (req, { params }) => {
   const id = Number(params.id);
   const photoId = Number(new URL(req.url).searchParams.get('photo_id'));
   const db = getDb();
+  const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
+  if (!ticket) return Response.json({ error: 'Ticket introuvable' }, { status: 404 });
+  assertTicketAccess(user, ticket);
+
   const photo = db.prepare('SELECT * FROM ticket_photos WHERE id = ? AND ticket_id = ?').get(photoId, id);
   if (!photo) return Response.json({ error: 'Photo introuvable' }, { status: 404 });
-  const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
-  const isManager = ['ADMIN', 'COORDINATEUR'].includes(user.role);
-  if (!isManager && !(ticket.assigned_to === user.id && !['VALIDE', 'ANNULE'].includes(ticket.status))) {
-    return Response.json({ error: 'Accès refusé' }, { status: 403 });
+  // Une équipe ne peut retirer une preuve qu'avant le contrôle qualité
+  if (!isCoord(user) && ['VALIDE_ST', 'VALIDE', 'ANNULE'].includes(ticket.status)) {
+    return Response.json({ error: 'Ticket déjà contrôlé' }, { status: 403 });
   }
   db.prepare('DELETE FROM ticket_photos WHERE id = ?').run(photoId);
   try { fs.unlinkSync(path.join(getUploadDir(), photo.file_path)); } catch {}

@@ -13,31 +13,42 @@ export default function Dashboard() {
   }, []);
 
   if (!stats) return <p className="text-gray-500">Chargement…</p>;
+  const percer = stats.scope === 'PERCER';
 
-  const statCards = [
-    { key: 'NOUVEAU', href: '/admin/tickets?status=NOUVEAU' },
-    { key: 'AFFECTE', href: '/admin/tickets?status=AFFECTE' },
-    { key: 'EN_COURS', href: '/admin/tickets?status=EN_COURS' },
-    { key: 'REALISE', href: '/admin/tickets?status=REALISE' },
-    { key: 'VALIDE', href: '/admin/tickets?status=VALIDE' },
-    { key: 'BLOQUE', href: '/admin/tickets?status=BLOQUE' },
-  ];
+  // Percer suit la répartition ; le sous-traitant part de ce qu'il a reçu
+  const cards = percer
+    ? ['NOUVEAU', 'DISPATCHE', 'EN_COURS', 'REALISE', 'VALIDE_ST', 'VALIDE', 'BLOQUE']
+    : ['DISPATCHE', 'AFFECTE', 'EN_COURS', 'REALISE', 'VALIDE_ST', 'VALIDE', 'BLOQUE'];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-black tracking-tight">Tableau de bord</h1>
+      <div>
+        <h1 className="text-2xl font-black tracking-tight">Tableau de bord</h1>
+        <p className="text-sm text-gray-500">
+          {percer ? 'Vue consolidée de tous les sous-traitants' : stats.orgName}
+        </p>
+      </div>
 
-      {/* Compteurs par statut */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {statCards.map(({ key, href }) => (
-          <Link key={key} href={href} className="card p-4 hover:border-brand-500 transition-colors">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        {cards.map((key) => (
+          <Link key={key} href={`/admin/tickets?status=${key}`}
+            className="card p-4 hover:border-brand-500 transition-colors">
             <div className="text-3xl font-black">{stats.byStatus[key] || 0}</div>
             <div className={`badge mt-1 ${TICKET_STATUS[key].color}`}>{TICKET_STATUS[key].label}</div>
           </Link>
         ))}
       </div>
 
-      {/* Alertes blocage — ne pas laisser trainer */}
+      {/* Percer : ce qui n'est pas encore chez un sous-traitant */}
+      {percer && (stats.byStatus.NOUVEAU || 0) > 0 && (
+        <div className="card border-brand-500 bg-brand-50 p-4 flex flex-wrap items-center gap-3">
+          <span className="font-bold text-brand-700">
+            📦 {stats.byStatus.NOUVEAU} ticket(s) en attente de répartition
+          </span>
+          <Link className="btn-primary ml-auto" href="/admin/repartition">Répartir maintenant</Link>
+        </div>
+      )}
+
       {stats.blockedAlerts.length > 0 && (
         <div className="card border-red-300 bg-red-50 p-4">
           <h2 className="font-bold text-red-800 mb-2">
@@ -51,6 +62,7 @@ export default function Dashboard() {
                 <TypeBadge type={t.type} />
                 <span>{t.client_name}</span>
                 <span className="text-red-600">— {BLOCKAGE_REASONS[t.blockage_reason] || t.blockage_reason}</span>
+                {percer && t.org_name && <span className="text-red-500 text-xs">({t.org_name})</span>}
                 <span className="ml-auto font-semibold">{t.hours_blocked}h</span>
               </Link>
             ))}
@@ -59,10 +71,13 @@ export default function Dashboard() {
       )}
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* À valider */}
         <div className="card p-4">
-          <h2 className="font-bold mb-3">✅ Réalisés — en attente de validation ({stats.toValidate.length})</h2>
-          {stats.toValidate.length === 0 && <p className="text-sm text-gray-500">Rien à valider.</p>}
+          <h2 className="font-bold mb-3">
+            {percer
+              ? `✅ Recette à prononcer (${stats.toValidate.length})`
+              : `✅ À contrôler avant envoi à Percer (${stats.toValidate.length})`}
+          </h2>
+          {stats.toValidate.length === 0 && <p className="text-sm text-gray-500">Rien en attente.</p>}
           <div className="space-y-2">
             {stats.toValidate.map((t) => (
               <Link key={t.id} href={`/admin/tickets/${t.id}`}
@@ -70,46 +85,47 @@ export default function Dashboard() {
                 <span className="font-mono font-semibold">{t.reference}</span>
                 <TypeBadge type={t.type} />
                 <span className="truncate">{t.client_name}</span>
-                <span className="ml-auto text-gray-500 whitespace-nowrap">
-                  {t.power_db != null ? `${t.power_db} dB · ` : ''}{t.technicien_name}
+                <span className="ml-auto text-gray-500 whitespace-nowrap text-xs">
+                  {t.power_db != null ? `${t.power_db} dB · ` : ''}
+                  {percer ? t.org_name : t.equipe_name}
                 </span>
               </Link>
             ))}
           </div>
         </div>
 
-        {/* Charge par technicien */}
         <div className="card p-4">
-          <h2 className="font-bold mb-3">👷 Équipe terrain</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-gray-500 border-b">
-                <th className="py-2">Technicien</th>
-                <th className="text-center">En cours</th>
-                <th className="text-center">Réalisés</th>
-                <th className="text-center">Validés 30j</th>
-                <th className="text-center">Bloqués</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.perTech.map((t) => (
-                <tr key={t.id} className="border-b border-gray-50">
-                  <td className="py-2 font-medium">
-                    {t.name}
-                    {t.zone && <span className="text-xs text-gray-400 ml-1">({t.zone})</span>}
-                  </td>
-                  <td className="text-center">{t.en_cours}</td>
-                  <td className="text-center">{t.realises}</td>
-                  <td className="text-center font-semibold text-green-700">{t.valides_30j}</td>
-                  <td className={`text-center font-semibold ${t.bloques > 0 ? 'text-red-600' : ''}`}>{t.bloques}</td>
+          <h2 className="font-bold mb-3">{percer ? '🏢 Sous-traitants' : '👷 Équipes terrain'}</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[420px]">
+              <thead>
+                <tr className="text-left text-xs text-gray-500 border-b">
+                  <th className="py-2">{percer ? 'Société' : 'Équipe'}</th>
+                  <th className="text-center">En cours</th>
+                  <th className="text-center">À contrôler</th>
+                  <th className="text-center">Validés 30j</th>
+                  <th className="text-center">Bloqués</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {stats.breakdown.map((r) => (
+                  <tr key={r.id} className="border-b border-gray-50">
+                    <td className="py-2 font-medium">
+                      {r.name}
+                      {r.detail && <span className="text-xs text-gray-400 ml-1">({r.detail})</span>}
+                    </td>
+                    <td className="text-center">{r.en_cours}</td>
+                    <td className="text-center">{r.a_controler}</td>
+                    <td className="text-center font-semibold text-green-700">{r.valides_30j}</td>
+                    <td className={`text-center font-semibold ${r.bloques > 0 ? 'text-red-600' : ''}`}>{r.bloques}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      {/* En cours par type */}
       <div className="card p-4">
         <h2 className="font-bold mb-3">Tickets actifs par activité</h2>
         <div className="flex flex-wrap gap-3">

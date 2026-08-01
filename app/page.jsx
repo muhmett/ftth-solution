@@ -6,5 +6,5 @@ export const dynamic = 'force-dynamic';
 export default function Home() {
   const user = getSessionUser();
   if (!user) redirect('/login');
-  redirect(user.role === 'TECHNICIEN' ? '/tech' : '/admin');
+  redirect(user.role === 'EQUIPE' ? '/tech' : '/admin');
 }

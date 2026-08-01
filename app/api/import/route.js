@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { getDb, addHistory } from '@/lib/db';
-import { requireUser, apiHandler } from '@/lib/auth';
+import { requireUser, apiHandler, isPercer } from '@/lib/auth';
+import { COORD_ROLES } from '@/lib/constants';
 
 // Champs cibles d'un ticket et mots-clés pour l'auto-détection des colonnes Excel
 const FIELD_KEYWORDS = {
@@ -44,7 +45,7 @@ function cellToString(v) {
 
 // POST multipart : file, mode=preview|commit, mapping (JSON), default_type
 export const POST = apiHandler(async (req) => {
-  const user = requireUser(['ADMIN', 'COORDINATEUR']);
+  const user = requireUser(COORD_ROLES);
   const form = await req.formData();
   const file = form.get('file');
   const mode = form.get('mode') || 'preview';
@@ -97,11 +98,16 @@ export const POST = apiHandler(async (req) => {
     .run(file.name || 'import.xlsx', dataRows.length, user.id);
   const batchId = batchInfo.lastInsertRowid;
 
+  // Percer importe le fichier maître (tickets à répartir) ; un sous-traitant qui
+  // reçoit encore son fichier directement les prend en charge pour sa société.
+  const orgId = isPercer(user) ? null : user.org_id;
+  const status = orgId ? 'DISPATCHE' : 'NOUVEAU';
+
   const get = (row, field) => (colFor[field] !== undefined ? cellToString(row[colFor[field]]) : '');
   const insert = db.prepare(`
-    INSERT INTO tickets (reference, type, client_name, client_phone, address, city, zone,
-      pbo, pto, nd, operator, rdv_date, notes, extra, import_batch_id, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    INSERT INTO tickets (reference, type, status, org_id, dispatched_at, client_name, client_phone,
+      address, city, zone, pbo, pto, nd, operator, rdv_date, notes, extra, import_batch_id, created_by)
+    VALUES (?,?,?,?,${orgId ? "datetime('now')" : 'NULL'},?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const existsStmt = db.prepare(
     "SELECT id FROM tickets WHERE reference = ? AND status NOT IN ('VALIDE','ANNULE')");
 
@@ -121,7 +127,8 @@ export const POST = apiHandler(async (req) => {
         if (!Object.values(colFor).includes(ci) && cellToString(row[ci])) extra[h] = cellToString(row[ci]);
       });
       const info = insert.run(
-        reference, type, get(row, 'client_name'), get(row, 'client_phone'), get(row, 'address'),
+        reference, type, status, orgId,
+        get(row, 'client_name'), get(row, 'client_phone'), get(row, 'address'),
         get(row, 'city'), get(row, 'zone'), get(row, 'pbo'), get(row, 'pto'), get(row, 'nd'),
         get(row, 'operator'), get(row, 'rdv_date'), get(row, 'notes'), JSON.stringify(extra),
         batchId, user.id

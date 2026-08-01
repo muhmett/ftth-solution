@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { TICKET_TYPES } from '@/lib/constants';
+import { useIsPercer } from '@/components/UserContext';
 
 const TARGET_FIELDS = {
   '': '— Ignorer —',
@@ -22,6 +23,7 @@ const TARGET_FIELDS = {
 };
 
 export default function ImportPage() {
+  const percer = useIsPercer();
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [mapping, setMapping] = useState([]);
@@ -77,8 +79,10 @@ export default function ImportPage() {
     <div className="space-y-6 max-w-4xl">
       <h1 className="text-2xl font-black tracking-tight">Import Excel</h1>
       <p className="text-sm text-gray-600">
-        Importez le fichier des tickets (FTTH, Partage In/Out, SAV) reçu de l&apos;opérateur.
-        Les colonnes sont détectées automatiquement — vérifiez le mapping avant de confirmer.
+        {percer
+          ? "Importez le fichier des tickets reçu de l'opérateur. Les tickets créés partent en attente de répartition vers vos sous-traitants."
+          : 'Importez le fichier des tickets reçu de Percer. Les tickets créés arrivent directement dans votre société, prêts à être affectés à une équipe.'}
+        {' '}Les colonnes sont détectées automatiquement — vérifiez le mapping avant de confirmer.
       </p>
 
       {/* Étape 1 : fichier */}
@@ -180,9 +184,15 @@ export default function ImportPage() {
             </ul>
           )}
           <div className="flex gap-3 pt-2">
-            <Link className="btn-primary" href="/admin/tickets?status=NOUVEAU">
-              Voir les nouveaux tickets → affecter aux techniciens
-            </Link>
+            {percer ? (
+              <Link className="btn-primary" href="/admin/repartition">
+                Répartir ces tickets entre les sous-traitants →
+              </Link>
+            ) : (
+              <Link className="btn-primary" href="/admin/tickets?status=DISPATCHE">
+                Affecter ces tickets aux équipes →
+              </Link>
+            )}
           </div>
         </div>
       )}

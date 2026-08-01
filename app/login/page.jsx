@@ -26,7 +26,7 @@ export default function LoginPage() {
         setError(data.error || 'Erreur de connexion');
         return;
       }
-      router.replace(data.user.role === 'TECHNICIEN' ? '/tech' : '/admin');
+      router.replace(data.user.role === 'EQUIPE' ? '/tech' : '/admin');
       router.refresh();
     } finally {
       setLoading(false);
