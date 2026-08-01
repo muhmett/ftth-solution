@@ -16,6 +16,11 @@ export default function TechHome() {
   const [tab, setTab] = useState('todo');
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stock, setStock] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/stock').then((r) => r.json()).then((d) => setStock(d.stock || []));
+  }, []);
 
   useEffect(() => {
     const t = TABS.find((t) => t.key === tab);
@@ -47,6 +52,25 @@ export default function TechHome() {
         <p className="text-center text-gray-500 py-8">
           {tab === 'todo' ? '🎉 Aucun ticket en attente' : 'Aucun ticket'}
         </p>
+      )}
+
+      {/* Ce que l'équipe embarque, pour ne pas partir sans matériel */}
+      {stock.length > 0 && (
+        <details className="card p-3">
+          <summary className="font-semibold text-sm cursor-pointer">
+            📦 Stock du véhicule ({stock.length} référence{stock.length > 1 ? 's' : ''})
+          </summary>
+          <ul className="text-sm mt-2 space-y-1">
+            {stock.map((s) => (
+              <li key={s.id} className="flex justify-between border-b border-gray-50 pb-1">
+                <span>{s.label}</span>
+                <span className={`font-semibold ${s.quantity <= 0 ? 'text-red-600' : ''}`}>
+                  {s.quantity} {s.unit}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {tickets.map((t) => (

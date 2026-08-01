@@ -113,6 +113,26 @@ export const PATCH = apiHandler(async (req, { params }) => {
         WHERE id = ?`)
         .run(power, body.router_sn || ticket.router_sn || '', body.comment || '', body.comment || '', id);
       addHistory(id, 'REALISATION', power !== null ? `Réalisé — puissance ${power} dB` : 'Réalisé', user.id);
+
+      // Matériel posé chez le client : sort du véhicule de l'équipe
+      const consumed = Array.isArray(body.materials) ? body.materials : [];
+      if (consumed.length) {
+        const insertMove = db.prepare(`
+          INSERT INTO stock_movements (org_id, material_id, kind, quantity, equipe_id, ticket_id, created_by)
+          VALUES (?,?, 'CONSOMMATION', ?,?,?,?)`);
+        const labels = [];
+        db.transaction(() => {
+          for (const m of consumed) {
+            const qty = Number(m.quantity);
+            if (!qty || qty <= 0) continue;
+            const mat = db.prepare('SELECT * FROM materials WHERE id = ? AND active = 1').get(Number(m.material_id));
+            if (!mat) continue;
+            insertMove.run(ticket.org_id, mat.id, qty, user.id, id, user.id);
+            labels.push(`${qty} ${mat.unit} ${mat.label}`);
+          }
+        })();
+        if (labels.length) addHistory(id, 'MATERIEL', labels.join(', '), user.id);
+      }
       break;
     }
     case 'validate': {

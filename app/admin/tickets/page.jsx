@@ -78,6 +78,11 @@ function TicketsInner() {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-black tracking-tight">Tickets</h1>
         <span className="text-sm text-gray-500">{tickets.length} résultat(s)</span>
+        <a className="btn-secondary ml-auto" href={`/api/export/tickets?${new URLSearchParams(
+          Object.fromEntries(Object.entries(filters).filter(([k, v]) => v && k !== 'q'))
+        )}`}>
+          ⬇️ Export Excel
+        </a>
       </div>
 
       <div className="card p-3 flex flex-wrap gap-2 items-center">

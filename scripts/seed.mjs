@@ -64,6 +64,43 @@ for (const [orgId, byType] of Object.entries(TERMS)) {
   }
 }
 
+// --- Catalogue matériel et stock de démonstration ---
+const addMaterial = db.prepare(
+  'INSERT INTO materials (reference, label, unit, min_stock) VALUES (?,?,?,?)');
+const addMove = db.prepare(`
+  INSERT INTO stock_movements (org_id, material_id, kind, quantity, equipe_id, note, created_by)
+  VALUES (?,?,?,?,?,?,?)`);
+
+const MATERIALS = [
+  ['PTO-STD', 'PTO standard', 'unité', 20],
+  ['ONT-G240', 'ONT / Routeur G-240', 'unité', 10],
+  ['CABLE-DROP', 'Câble de branchement', 'mètre', 500],
+  ['CONN-SC-APC', 'Connecteur SC/APC', 'unité', 50],
+  ['JARR-2M', 'Jarretière optique 2 m', 'unité', 15],
+];
+const matIds = {};
+for (const [reference, label, unit, min] of MATERIALS) {
+  matIds[reference] = addMaterial.run(reference, label, unit, min).lastInsertRowid;
+}
+
+// Percer livre les dépôts, le sous-traitant équipe ses véhicules
+const DELIVERIES = [
+  [ayline, 'PTO-STD', 120], [ayline, 'ONT-G240', 60], [ayline, 'CABLE-DROP', 3000],
+  [ayline, 'CONN-SC-APC', 300], [ayline, 'JARR-2M', 80],
+  [sotra, 'PTO-STD', 60], [sotra, 'ONT-G240', 30], [sotra, 'CABLE-DROP', 1500],
+];
+for (const [org, ref, qty] of DELIVERIES) {
+  addMove.run(org, matIds[ref], 'ENTREE', qty, null, 'Livraison Percer (démo)', admin);
+}
+const ALLOCATIONS = [
+  [ayline, eq1, 'PTO-STD', 15], [ayline, eq1, 'ONT-G240', 8], [ayline, eq1, 'CABLE-DROP', 400],
+  [ayline, eq2, 'PTO-STD', 12], [ayline, eq2, 'ONT-G240', 6], [ayline, eq2, 'CABLE-DROP', 350],
+  [sotra, eq4, 'PTO-STD', 10], [sotra, eq4, 'ONT-G240', 5],
+];
+for (const [org, equipe, ref, qty] of ALLOCATIONS) {
+  addMove.run(org, matIds[ref], 'ATTRIBUTION', qty, equipe, 'Dotation véhicule (démo)', admin);
+}
+
 // --- Tickets ---
 const T = (o) => ({
   status: 'NOUVEAU', org_id: null, client_phone: '', address: '', city: 'Casablanca', zone: '',
@@ -144,6 +181,12 @@ const insert = db.transaction(() => {
       validated_by  = ${admin}, power_db = -18.9
       WHERE id = ?`).run(id);
     addHistory.run(id, 'RECETTE', 'Recette (démo)', admin);
+    // Matériel réellement posé sur ces interventions
+    if (type !== 'SAV') {
+      addMove.run(org, matIds['PTO-STD'], 'CONSOMMATION', 1, equipe, '', admin);
+      addMove.run(org, matIds['ONT-G240'], 'CONSOMMATION', 1, equipe, '', admin);
+      addMove.run(org, matIds['CABLE-DROP'], 'CONSOMMATION', 25, equipe, '', admin);
+    }
   }
 
   // Échéance des tickets confiés à un sous-traitant : RDV client, sinon délai contractuel

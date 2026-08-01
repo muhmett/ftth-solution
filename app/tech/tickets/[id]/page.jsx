@@ -17,6 +17,8 @@ export default function TechTicketDetail() {
   const [comment, setComment] = useState('');
   const [showBlock, setShowBlock] = useState(false);
   const [blockReason, setBlockReason] = useState('');
+  const [stock, setStock] = useState([]);
+  const [used, setUsed] = useState({});
   const [uploadType, setUploadType] = useState(null);
   const fileRef = useRef(null);
 
@@ -30,6 +32,9 @@ export default function TechTicketDetail() {
   }, [id, router]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch('/api/stock').then((r) => r.json()).then((d) => setStock(d.stock || []));
+  }, []);
 
   async function act(action, extra = {}) {
     setBusy(true);
@@ -231,6 +236,34 @@ export default function TechTicketDetail() {
               </div>
             </>
           )}
+          {/* Matériel posé : sort du stock du véhicule */}
+          {stock.length > 0 && (
+            <div>
+              <label className="label">Matériel posé</label>
+              <div className="space-y-1">
+                {stock.map((s) => (
+                  <div key={s.id} className="flex items-center gap-3 border border-gray-200 rounded-lg p-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{s.label}</div>
+                      <div className="text-xs text-gray-400">
+                        reste {s.quantity} {s.unit}
+                      </div>
+                    </div>
+                    {/* Largeur portée par le conteneur : .input impose width:100% */}
+                    <div className="w-20 shrink-0">
+                      <input
+                        className="input text-center"
+                        type="number" min="0" step="0.5" placeholder="0"
+                        value={used[s.id] ?? ''}
+                        onChange={(e) => setUsed({ ...used, [s.id]: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="label">Commentaire</label>
             <textarea className="input" rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />
@@ -241,7 +274,14 @@ export default function TechTicketDetail() {
             </p>
           )}
           <button className="btn-success w-full py-3 text-base" disabled={!canRealize || busy}
-            onClick={() => act('realize', { power_db: powerDb, router_sn: routerSn, comment })}>
+            onClick={() => act('realize', {
+              power_db: powerDb,
+              router_sn: routerSn,
+              comment,
+              materials: Object.entries(used)
+                .map(([material_id, quantity]) => ({ material_id: Number(material_id), quantity: Number(quantity) }))
+                .filter((m) => m.quantity > 0),
+            })}>
             ✓ Clôturer le ticket
           </button>
 

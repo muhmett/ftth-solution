@@ -54,6 +54,9 @@ sur **toutes** les lectures, y compris le téléchargement des photos — jamais
   déduites, exportable en Excel (récapitulatif + détail ticket par ticket).
 - **Pilotage** : vue consolidée par sous-traitant, taux de respect des délais, alertes sur les
   échéances dépassées et sur les blocages de plus de 24 h.
+- **Matériel** : catalogue des références, livraisons aux sous-traitants, et rapprochement
+  livré / consommé / restant pour chacun.
+- **Export Excel** des tickets filtrés, à renvoyer à l'opérateur ou à archiver.
 - **Sous-traitants** : création et activation des sociétés partenaires.
 
 ### Sous-traitant
@@ -63,6 +66,8 @@ sur **toutes** les lectures, y compris le téléchargement des photos — jamais
 - **Attachement en miroir** : le même décompte que celui de Percer, en lecture seule — les écarts
   se constatent en cours de mois, plus au moment de la facture.
 - **Conditions contractuelles** consultables (prix, délais, retenues).
+- **Stock** : dépôt et véhicules, attributions aux équipes, retours, pertes et ajustements
+  d'inventaire, avec alerte sous seuil.
 - **Équipes** : un compte par binôme, avec le nom des deux intervenants pour la traçabilité.
 - Import Excel disponible en repli si Percer n'est pas encore sur la plateforme.
 
@@ -77,6 +82,7 @@ sur **toutes** les lectures, y compris le téléchargement des photos — jamais
   coordination pour replanification au lieu de rester en attente.
 - **Notifications sur le téléphone** à l'affectation d'un ticket, au rejet et à la replanification.
 - Échéance et état du délai visibles sur chaque ticket.
+- **Stock du véhicule** consultable, et matériel posé déclaré au moment de la clôture.
 - Prise de photo directe par la caméra, installable sur Android.
 
 ## Délais et facturation
@@ -89,6 +95,25 @@ marqué hors délai et subit la retenue prévue au contrat.
 L'attachement du mois retient les tickets dont **Percer a prononcé la recette** pendant ce mois :
 c'est la seule étape qui rend une intervention facturable. Comme les photos, les mesures et
 l'horodatage de chaque transition sont conservés, une ligne contestée se tranche sur pièces.
+
+## Stock matériel
+
+Le stock n'est jamais stocké comme un compteur : il se **recalcule à partir du journal des
+mouvements**, ce qui évite les compteurs désynchronisés et garde l'historique de chaque entrée
+et sortie. Chaque société a deux emplacements — le **dépôt** et le **véhicule** de chaque équipe :
+
+| Mouvement | Effet |
+|---|---|
+| Livraison reçue | + dépôt |
+| Attribution | dépôt → véhicule |
+| Consommation | − véhicule (rattachée au ticket) |
+| Retour | véhicule → dépôt |
+| Perte / casse | − emplacement concerné |
+| Ajustement d'inventaire | correction signée après comptage |
+
+Le matériel déclaré à la clôture d'un ticket sort automatiquement du véhicule de l'équipe et
+reste rattaché à l'intervention. Un stock négatif s'affiche en rouge plutôt que d'être bloqué :
+sur le terrain, une saisie en retard ne doit pas empêcher de clôturer une intervention réelle.
 
 ## Stack technique
 
@@ -135,15 +160,17 @@ depuis Chrome (« Ajouter à l'écran d'accueil »). Pour le Play Store, deux vo
 ```
 app/
   api/            # auth, tickets, dispatch, import, photos, users, organisations,
-                  # stats, contrats, facturation (+ export), push
-  admin/          # coordination : dashboard, tickets, répartition, facturation,
-                  # contrats, sous-traitants, équipes
+                  # stats, contrats, facturation (+ export), stock, materiel,
+                  # export/tickets, push
+  admin/          # coordination : dashboard, tickets, répartition, stock,
+                  # facturation, contrats, sous-traitants, équipes
   tech/           # interface équipe terrain (mobile)
 components/       # AdminShell, TechShell, Badges, FiberBackground, UserContext, PushToggle
 lib/              # schema.mjs (SQL), db.js (accès + migration), auth.js (portées),
-                  # contracts.js (échéances), facturation.js (attachement), push.js, constants.js
+                  # contracts.js (échéances), facturation.js (attachement),
+                  # stock.js (niveaux), push.js, constants.js
 public/sw.js      # service worker des notifications
-scripts/seed.mjs  # sociétés, comptes, contrats et tickets de démonstration
+scripts/seed.mjs  # sociétés, comptes, contrats, matériel et tickets de démonstration
 ```
 
 ### Notifications
@@ -154,5 +181,5 @@ servir l'application en HTTPS — le navigateur refuse les notifications autreme
 
 ## Suite envisagée
 
-Gestion du matériel (PTO, routeurs, câble) consommé par équipe, export au format attendu par
-l'opérateur, et application Android empaquetée.
+Application Android empaquetée (TWA ou Capacitor) et mode hors ligne pour les interventions
+en sous-sol : file d'attente des photos et des clôtures, rejouée au retour du réseau.
