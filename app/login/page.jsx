@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import FiberBackground from '@/components/FiberBackground';
 
 export default function LoginPage() {
@@ -75,6 +76,11 @@ export default function LoginPage() {
         </form>
         <p className="text-center text-gray-500 text-xs mt-6">
           FTTH · Partage In · Partage Out · SAV
+        </p>
+        <p className="text-center mt-4">
+          <Link href="/" className="text-gray-400 hover:text-gray-200 text-xs">
+            ← Découvrir la plateforme
+          </Link>
         </p>
       </div>
     </div>
