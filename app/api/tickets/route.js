@@ -14,7 +14,8 @@ export const GET = apiHandler(async (req) => {
   const where = scope.sql ? [scope.sql] : [];
   const vals = [...scope.vals];
 
-  if (isCoord(user)) {
+  // Le filtre par équipe n'a de sens que pour la société qui les emploie
+  if (isCoord(user) && !isPercer(user)) {
     const team = sp.get('equipe');
     if (team) { where.push('t.assigned_to = ?'); vals.push(Number(team)); }
     if (sp.get('unassigned') === '1') where.push('t.assigned_to IS NULL');
@@ -42,7 +43,7 @@ export const GET = apiHandler(async (req) => {
   if (sla && SLA_STATES[sla]) where.push(`(${slaSql('t')}) = '${sla}'`);
 
   const sql = `
-    SELECT t.*, u.name AS equipe_name, o.name AS org_name,
+    SELECT t.*, ${isPercer(user) ? 'NULL' : 'u.name'} AS equipe_name, o.name AS org_name,
       (${slaSql('t')}) AS sla_state,
       (SELECT COUNT(*) FROM ticket_photos p WHERE p.ticket_id = t.id) AS photo_count
     FROM tickets t

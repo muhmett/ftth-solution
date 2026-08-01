@@ -21,13 +21,16 @@ export const GET = apiHandler(async (req) => {
   const s = monthlyStatement(orgId, month);
   if (!s) return Response.json({ error: 'Société introuvable' }, { status: 404 });
 
+  // La colonne « Équipe » n'a de sens que pour la société qui les emploie
+  const withTeam = !percer;
   const detail = [
-    ['Référence', 'Activité', 'Client', 'Adresse', 'Ville', 'Équipe',
+    ['Référence', 'Activité', 'Client', 'Adresse', 'Ville', ...(withTeam ? ['Équipe'] : []),
       'Réalisé le', 'Échéance', 'Hors délai', 'Recette le',
       `Prix (${CURRENCY})`, `Retenue (${CURRENCY})`, `Net (${CURRENCY})`],
     ...s.lines.map((l) => [
       l.reference, TICKET_TYPES[l.type]?.label || l.type, l.client_name, l.address, l.city,
-      l.equipe_name || '', l.realized_at || '', l.deadline || '', l.late ? 'OUI' : 'NON',
+      ...(withTeam ? [l.equipe_name || ''] : []),
+      l.realized_at || '', l.deadline || '', l.late ? 'OUI' : 'NON',
       l.validated_at || '', l.unit_price, l.penalty, l.net,
     ]),
   ];
@@ -54,9 +57,7 @@ export const GET = apiHandler(async (req) => {
   XLSX.utils.book_append_sheet(wb, wsRecap, 'Récapitulatif');
 
   const wsDetail = XLSX.utils.aoa_to_sheet(detail);
-  wsDetail['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 28 }, { wch: 14 },
-    { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 11 }, { wch: 18 },
-    { wch: 12 }, { wch: 14 }, { wch: 12 }];
+  wsDetail['!cols'] = detail[0].map((h) => ({ wch: Math.max(12, Math.min(28, h.length + 6)) }));
   XLSX.utils.book_append_sheet(wb, wsDetail, 'Détail');
 
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });

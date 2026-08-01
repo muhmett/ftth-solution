@@ -30,7 +30,7 @@ const PERCER_STEPS = [
   },
   {
     titre: 'Suivre sans relancer',
-    detail: "Le tableau de bord affiche l'avancement de chaque sous-traitant, le taux de respect des délais, les tickets dont l'échéance approche et ceux bloqués depuis plus de 24 h. L'information remonte d'elle-même.",
+    detail: "Le tableau de bord affiche l'avancement de chaque sous-traitant, le taux de respect des délais, les tickets dont l'échéance approche et ceux bloqués depuis plus de 24 h. Le suivi se fait au niveau de la société : quelle équipe intervient reste la décision du sous-traitant.",
   },
   {
     titre: 'Prononcer la recette',
@@ -92,6 +92,10 @@ const ATOUTS = [
   {
     titre: 'Chaque société chez elle',
     detail: "Deux sous-traitants concurrents travaillent sur la même plateforme sans jamais voir les clients de l'autre. Le cloisonnement est appliqué à chaque lecture, y compris sur les photos.",
+  },
+  {
+    titre: 'Vos équipes restent les vôtres',
+    detail: "Le donneur d'ordre confie un lot à une société et suit son avancement ; le choix de l'équipe qui intervient, et l'identité des intervenants, ne lui remontent pas.",
   },
   {
     titre: 'Des délais tenus',

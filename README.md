@@ -36,12 +36,26 @@ plateforme sans jamais voir les clients de l'autre.
 
 | Rôle | Périmètre visible |
 |---|---|
-| `PERCER_ADMIN` / `PERCER_COORD` | Tous les sous-traitants |
-| `ST_COORD` | Uniquement sa société |
+| `PERCER_ADMIN` / `PERCER_COORD` | Tous les sous-traitants, au niveau société |
+| `ST_COORD` | Uniquement sa société, équipes comprises |
 | `EQUIPE` | Uniquement les tickets qui lui sont affectés |
 
 La portée est appliquée côté serveur (`ticketScope` / `assertTicketAccess` dans `lib/auth.js`)
 sur **toutes** les lectures, y compris le téléchargement des photos — jamais dans l'interface seule.
+
+### Le donneur d'ordre traite avec des sociétés, pas avec leurs salariés
+
+Percer confie un lot à un sous-traitant ; c'est ce dernier qui décide quelle équipe intervient.
+L'organisation interne d'un sous-traitant ne remonte donc pas au donneur d'ordre : ni les noms
+d'équipes, ni ceux des intervenants, ni la dotation véhicule par véhicule. Concrètement, pour un
+compte Percer :
+
+- les listes, détails, statistiques, attachements et exports affichent la **société**, pas l'équipe ;
+- l'affectation à une équipe est refusée (`403`), comme la création ou la modification d'un compte équipe ;
+- le filtre par équipe et l'annuaire des équipes n'existent pas.
+
+Le filtrage se fait au niveau des requêtes (`hideTeamIdentity` / `stripTeamFields` dans
+`lib/auth.js`) : les noms ne sont pas simplement masqués à l'écran, ils ne sont pas envoyés.
 
 ## Fonctionnalités
 
@@ -54,8 +68,8 @@ sur **toutes** les lectures, y compris le téléchargement des photos — jamais
   déduites, exportable en Excel (récapitulatif + détail ticket par ticket).
 - **Pilotage** : vue consolidée par sous-traitant, taux de respect des délais, alertes sur les
   échéances dépassées et sur les blocages de plus de 24 h.
-- **Matériel** : catalogue des références, livraisons aux sous-traitants, et rapprochement
-  livré / consommé / restant pour chacun.
+- **Matériel** : catalogue des références, livraisons aux dépôts des sous-traitants, et
+  rapprochement livré / consommé / restant pour chacun.
 - **Export Excel** des tickets filtrés, à renvoyer à l'opérateur ou à archiver.
 - **Sous-traitants** : création et activation des sociétés partenaires.
 

@@ -40,6 +40,9 @@ export const GET = apiHandler(async (req) => {
   const to = sp.get('to');
   if (to) { where.push('date(t.created_at) <= date(?)'); vals.push(to); }
 
+  // Le donneur d'ordre exporte des interventions rattachées à une société,
+  // sans l'organisation interne de celle-ci.
+  const withTeam = !isPercer(user);
   const rows = getDb().prepare(`
     SELECT t.*, u.name AS equipe_name, u.member1, u.member2, o.name AS org_name,
       (${slaSql('t')}) AS sla_state,
@@ -51,7 +54,8 @@ export const GET = apiHandler(async (req) => {
     ORDER BY t.reference LIMIT 20000`).all(...vals);
 
   const header = [
-    'Référence', 'Activité', 'Statut', 'Sous-traitant', 'Équipe', 'Intervenants',
+    'Référence', 'Activité', 'Statut', 'Sous-traitant',
+    ...(withTeam ? ['Équipe', 'Intervenants'] : []),
     'Client', 'Téléphone', 'Adresse', 'Ville', 'Zone',
     'ND', 'PBO', 'PTO', 'Opérateur infra',
     'RDV', 'Échéance', 'Respect du délai',
@@ -60,8 +64,8 @@ export const GET = apiHandler(async (req) => {
   ];
   const data = rows.map((t) => [
     t.reference, TICKET_TYPES[t.type]?.label || t.type, TICKET_STATUS[t.status]?.label || t.status,
-    t.org_name || '', t.equipe_name || '',
-    [t.member1, t.member2].filter(Boolean).join(' + '),
+    t.org_name || '',
+    ...(withTeam ? [t.equipe_name || '', [t.member1, t.member2].filter(Boolean).join(' + ')] : []),
     t.client_name, t.client_phone, t.address, t.city, t.zone,
     t.nd, t.pbo, t.pto, t.operator,
     t.rdv_date, t.deadline || '', SLA_STATES[t.sla_state]?.label || '',

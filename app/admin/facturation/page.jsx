@@ -158,7 +158,7 @@ export default function FacturationPage() {
                       <th className="py-2">Référence</th>
                       <th>Activité</th>
                       <th>Client</th>
-                      <th>Équipe</th>
+                      {!percer && <th>Équipe</th>}
                       <th>Recette</th>
                       <th className="text-right">Prix</th>
                       <th className="text-right">Retenue</th>
@@ -171,7 +171,7 @@ export default function FacturationPage() {
                         <td className="py-2 font-mono">{l.reference}</td>
                         <td><TypeBadge type={l.type} /></td>
                         <td className="max-w-[160px] truncate">{l.client_name}</td>
-                        <td className="text-xs">{l.equipe_name}</td>
+                        {!percer && <td className="text-xs">{l.equipe_name}</td>}
                         <td className="text-xs whitespace-nowrap">
                           {l.validated_at}
                           {l.late && <span className="badge bg-orange-100 text-orange-800 ml-1">retard</span>}

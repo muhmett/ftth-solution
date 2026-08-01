@@ -32,7 +32,9 @@ export const GET = apiHandler(async (req) => {
 
   const movements = getDb().prepare(`
     SELECT m.*, mat.reference, mat.label, mat.unit, o.name AS org_name,
-      u.name AS equipe_name, c.name AS created_by_name, t.reference AS ticket_reference
+      ${percer ? 'NULL' : 'u.name'} AS equipe_name,
+      ${percer ? 'NULL' : 'c.name'} AS created_by_name,
+      t.reference AS ticket_reference
     FROM stock_movements m
     JOIN materials mat ON mat.id = m.material_id
     JOIN organizations o ON o.id = m.org_id

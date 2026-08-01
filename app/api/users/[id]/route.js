@@ -18,6 +18,10 @@ export const PATCH = apiHandler(async (req, { params }) => {
     if (user.role !== 'PERCER_ADMIN') {
       return Response.json({ error: 'Seul un administrateur Percer peut modifier un compte' }, { status: 403 });
     }
+    if (target.role === 'EQUIPE') {
+      return Response.json(
+        { error: 'Les équipes sont gérées par le sous-traitant qui les emploie' }, { status: 403 });
+    }
   } else {
     if (target.org_id !== user.org_id || !ST_MANAGEABLE.includes(target.role)) {
       return Response.json({ error: 'Accès refusé' }, { status: 403 });

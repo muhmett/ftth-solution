@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { ROLES } from '@/lib/constants';
 import { useUser, useIsPercer } from '@/components/UserContext';
 
-const EMPTY = { name: '', phone: '', password: '', role: 'EQUIPE', zone: '', member1: '', member2: '', org_id: '' };
+const EMPTY_ST = { name: '', phone: '', password: '', role: 'EQUIPE', zone: '', member1: '', member2: '', org_id: '' };
+const EMPTY_PERCER = { ...EMPTY_ST, role: 'ST_COORD' };
 
 export default function EquipesPage() {
   const user = useUser();
   const percer = useIsPercer();
+  const EMPTY = percer ? EMPTY_PERCER : EMPTY_ST;
   const [users, setUsers] = useState([]);
   const [orgs, setOrgs] = useState([]);
   const [form, setForm] = useState(EMPTY);
@@ -30,9 +32,10 @@ export default function EquipesPage() {
     }
   }, [percer]);
 
-  // Un sous-traitant ne gère que ses propres rôles
+  // Percer gère ses comptes et les coordinateurs de ses sous-traitants ;
+  // les équipes sont créées par la société qui les emploie.
   const availableRoles = percer
-    ? Object.keys(ROLES)
+    ? ['PERCER_ADMIN', 'PERCER_COORD', 'ST_COORD']
     : ['ST_COORD', 'EQUIPE'];
 
   async function save(e) {
@@ -73,9 +76,13 @@ export default function EquipesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black tracking-tight">Équipes & comptes</h1>
+        <h1 className="text-2xl font-black tracking-tight">
+          {percer ? 'Comptes' : 'Équipes & comptes'}
+        </h1>
         <p className="text-sm text-gray-500">
-          Une équipe = un compte partagé par le binôme qui intervient sur le terrain.
+          {percer
+            ? "Vos comptes et les coordinateurs de vos sous-traitants. Chaque sous-traitant gère lui-même ses équipes."
+            : 'Une équipe = un compte partagé par le binôme qui intervient sur le terrain.'}
         </p>
       </div>
 

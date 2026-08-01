@@ -1,12 +1,12 @@
 import { getDb, addHistory } from '@/lib/db';
-import { requireUser, apiHandler, isPercer } from '@/lib/auth';
+import { requireUser, apiHandler } from '@/lib/auth';
 import { notifyTicketEvent } from '@/lib/push';
-import { COORD_ROLES } from '@/lib/constants';
 
 // Affectation en masse à une équipe : { ticket_ids, equipe_id }
-// L'équipe et les tickets doivent appartenir à la même société.
+// Réservée au sous-traitant : le donneur d'ordre confie un lot à une société,
+// c'est elle qui décide quelle équipe intervient.
 export const POST = apiHandler(async (req) => {
-  const user = requireUser(COORD_ROLES);
+  const user = requireUser(['ST_COORD']);
   const { ticket_ids, equipe_id } = await req.json();
   if (!Array.isArray(ticket_ids) || !ticket_ids.length) {
     return Response.json({ error: 'Aucun ticket sélectionné' }, { status: 400 });
@@ -15,7 +15,7 @@ export const POST = apiHandler(async (req) => {
   const equipe = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'EQUIPE' AND active = 1")
     .get(Number(equipe_id));
   if (!equipe) return Response.json({ error: 'Équipe invalide' }, { status: 400 });
-  if (!isPercer(user) && equipe.org_id !== user.org_id) {
+  if (equipe.org_id !== user.org_id) {
     return Response.json({ error: 'Accès refusé' }, { status: 403 });
   }
 

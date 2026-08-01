@@ -1,5 +1,5 @@
 import { getDb, addHistory, touchTicket } from '@/lib/db';
-import { requireUser, apiHandler, isPercer, isCoord, assertTicketAccess } from '@/lib/auth';
+import { requireUser, apiHandler, isPercer, isCoord, assertTicketAccess, stripTeamFields } from '@/lib/auth';
 import { refreshDeadline, slaSql } from '@/lib/contracts';
 import { notifyTicketEvent } from '@/lib/push';
 import { REQUIRED_PHOTOS, BLOCKAGE_REASONS } from '@/lib/constants';
@@ -28,11 +28,13 @@ export const GET = apiHandler(async (req, { params }) => {
   const photos = db.prepare(
     'SELECT id, photo_type, file_path, created_at FROM ticket_photos WHERE ticket_id = ? ORDER BY created_at'
   ).all(ticket.id);
+  // Le donneur d'ordre suit les étapes, pas qui les a faites chez le sous-traitant
   const history = db.prepare(`
-    SELECT h.action, h.detail, h.created_at, u.name AS user_name
+    SELECT h.action, h.detail, h.created_at,
+      ${isPercer(user) ? 'NULL' : 'u.name'} AS user_name
     FROM ticket_history h LEFT JOIN users u ON u.id = h.user_id
     WHERE h.ticket_id = ? ORDER BY h.created_at DESC, h.id DESC`).all(ticket.id);
-  return Response.json({ ticket, photos, history });
+  return Response.json({ ticket: stripTeamFields(user, ticket), photos, history });
 });
 
 // Actions sur un ticket. Le contrôle qualité se fait à deux niveaux :
@@ -69,7 +71,8 @@ export const PATCH = apiHandler(async (req, { params }) => {
       break;
     }
     case 'assign': {
-      // Affectation à une équipe du sous-traitant détenteur
+      // L'affectation aux équipes relève du sous-traitant, pas du donneur d'ordre
+      if (percer) return fail('L\'affectation aux équipes revient au sous-traitant', 403);
       if (!coord) return fail('Accès refusé', 403);
       if (!ticket.org_id) return fail('Le ticket doit d\'abord être réparti vers un sous-traitant');
       const equipe = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'EQUIPE' AND active = 1")
@@ -217,5 +220,5 @@ export const PATCH = apiHandler(async (req, { params }) => {
   }
 
   touchTicket(id);
-  return Response.json({ ticket: loadTicket(db, id) });
+  return Response.json({ ticket: stripTeamFields(user, loadTicket(db, id)) });
 });

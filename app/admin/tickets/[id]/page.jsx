@@ -27,10 +27,11 @@ export default function AdminTicketDetail() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    fetch('/api/users?role=EQUIPE').then((r) => r.json()).then((d) => setEquipes(d.users || []));
     if (percer) {
       fetch('/api/organisations?type=SOUS_TRAITANT').then((r) => r.json())
         .then((d) => setOrgs(d.organisations || []));
+    } else {
+      fetch('/api/users?role=EQUIPE').then((r) => r.json()).then((d) => setEquipes(d.users || []));
     }
   }, [percer]);
 
@@ -55,7 +56,8 @@ export default function AdminTicketDetail() {
   const { ticket, photos, history } = data;
   const extra = JSON.parse(ticket.extra || '{}');
   const canDispatch = percer && ['NOUVEAU', 'DISPATCHE', 'BLOQUE'].includes(ticket.status);
-  const canAssign = ticket.org_id && ['DISPATCHE', 'AFFECTE', 'BLOQUE'].includes(ticket.status);
+  // L'affectation terrain appartient au sous-traitant
+  const canAssign = !percer && ticket.org_id && ['DISPATCHE', 'AFFECTE', 'BLOQUE'].includes(ticket.status);
   const teamsOfOrg = equipes.filter((e) => e.org_id === ticket.org_id);
 
   return (
@@ -150,15 +152,18 @@ export default function AdminTicketDetail() {
           <div className="card p-5 space-y-3">
             <h2 className="font-bold">Actions</h2>
             <dl className="text-sm space-y-1">
-              {percer && (
-                <div>Sous-traitant : <span className="font-semibold">{ticket.org_name || 'Non réparti'}</span></div>
+              {percer ? (
+                <div>
+                  Sous-traitant : <span className="font-semibold">{ticket.org_name || 'Non réparti'}</span>
+                </div>
+              ) : (
+                <div>
+                  Équipe : <span className="font-semibold">{ticket.equipe_name || 'Non affectée'}</span>
+                  {(ticket.member1 || ticket.member2) && (
+                    <span className="text-gray-500 text-xs"> ({[ticket.member1, ticket.member2].filter(Boolean).join(' + ')})</span>
+                  )}
+                </div>
               )}
-              <div>
-                Équipe : <span className="font-semibold">{ticket.equipe_name || 'Non affectée'}</span>
-                {(ticket.member1 || ticket.member2) && (
-                  <span className="text-gray-500 text-xs"> ({[ticket.member1, ticket.member2].filter(Boolean).join(' + ')})</span>
-                )}
-              </div>
             </dl>
 
             {canDispatch && (
@@ -200,7 +205,7 @@ export default function AdminTicketDetail() {
                   ✓ Contrôler
                 </button>
                 <button className="btn-danger" disabled={busy}
-                  onClick={() => { if (confirm('Renvoyer ce ticket à l\'équipe ?')) act('reject'); }}>
+                  onClick={() => { if (confirm(percer ? 'Renvoyer ce ticket au sous-traitant ?' : 'Renvoyer ce ticket à l\'équipe ?')) act('reject'); }}>
                   ✗ Rejeter
                 </button>
               </div>

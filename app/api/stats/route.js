@@ -23,10 +23,13 @@ export const GET = apiHandler(async () => {
     byType[r.type] = r.n;
   }
 
+  // Pour Percer, l'interlocuteur est la société, pas l'équipe qui intervient
+  const equipeCol = percer ? 'NULL' : 'u.name';
+
   // Blocages qui traînent : priorité absolue de la coordination
   const blockedAlerts = db.prepare(`
     SELECT t.id, t.reference, t.type, t.client_name, t.blockage_reason, t.blocked_at,
-      u.name AS equipe_name, o.name AS org_name,
+      ${equipeCol} AS equipe_name, o.name AS org_name,
       CAST((julianday('now') - julianday(t.blocked_at)) * 24 AS INTEGER) AS hours_blocked
     FROM tickets t
     LEFT JOIN users u ON u.id = t.assigned_to
@@ -38,7 +41,7 @@ export const GET = apiHandler(async () => {
   const awaiting = percer ? 'VALIDE_ST' : 'REALISE';
   const toValidate = db.prepare(`
     SELECT t.id, t.reference, t.type, t.client_name, t.realized_at, t.power_db,
-      u.name AS equipe_name, o.name AS org_name
+      ${equipeCol} AS equipe_name, o.name AS org_name
     FROM tickets t
     LEFT JOIN users u ON u.id = t.assigned_to
     LEFT JOIN organizations o ON o.id = t.org_id
@@ -84,7 +87,7 @@ export const GET = apiHandler(async () => {
   // Tickets en retard ou sur le point de l'être, à traiter en priorité
   const slaAlerts = db.prepare(`
     SELECT t.id, t.reference, t.type, t.client_name, t.deadline,
-      u.name AS equipe_name, o.name AS org_name, (${slaSql('t')}) AS sla_state
+      ${equipeCol} AS equipe_name, o.name AS org_name, (${slaSql('t')}) AS sla_state
     FROM tickets t
     LEFT JOIN users u ON u.id = t.assigned_to
     LEFT JOIN organizations o ON o.id = t.org_id

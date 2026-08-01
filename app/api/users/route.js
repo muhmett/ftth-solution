@@ -14,6 +14,9 @@ export const GET = apiHandler(async (req) => {
   const vals = [];
 
   if (isPercer(user)) {
+    // Le donneur d'ordre gère ses propres comptes et les coordinateurs de ses
+    // sous-traitants ; les équipes relèvent de la société qui les emploie.
+    where.push("u.role != 'EQUIPE'");
     const org = sp.get('org');
     if (org) { where.push('u.org_id = ?'); vals.push(Number(org)); }
   } else {
@@ -49,6 +52,10 @@ export const POST = apiHandler(async (req) => {
   if (isPercer(user)) {
     if (user.role !== 'PERCER_ADMIN') {
       return Response.json({ error: 'Seul un administrateur Percer peut créer un compte' }, { status: 403 });
+    }
+    if (role === 'EQUIPE') {
+      return Response.json(
+        { error: 'Les équipes sont créées par le sous-traitant qui les emploie' }, { status: 403 });
     }
     orgId = body.org_id ? Number(body.org_id) : user.org_id;
   } else {

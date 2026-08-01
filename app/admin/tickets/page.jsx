@@ -39,10 +39,12 @@ function TicketsInner() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    fetch('/api/users?role=EQUIPE').then((r) => r.json()).then((d) => setEquipes(d.users || []));
+    // Les équipes ne concernent que la société qui les emploie
     if (percer) {
       fetch('/api/organisations?type=SOUS_TRAITANT').then((r) => r.json())
         .then((d) => setOrgs(d.organisations || []));
+    } else {
+      fetch('/api/users?role=EQUIPE').then((r) => r.json()).then((d) => setEquipes(d.users || []));
     }
   }, [percer]);
 
@@ -105,11 +107,13 @@ function TicketsInner() {
             {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
         )}
-        <select className="input max-w-[190px]" value={filters.equipe}
-          onChange={(e) => setFilters({ ...filters, equipe: e.target.value })}>
-          <option value="">Toutes équipes</option>
-          {equipes.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
+        {!percer && (
+          <select className="input max-w-[190px]" value={filters.equipe}
+            onChange={(e) => setFilters({ ...filters, equipe: e.target.value })}>
+            <option value="">Toutes équipes</option>
+            {equipes.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
         <select className="input max-w-[190px]" value={filters.sla}
           onChange={(e) => setFilters({ ...filters, sla: e.target.value })}>
           <option value="">Tous délais</option>
@@ -135,20 +139,24 @@ function TicketsInner() {
                   (d) => `${d.dispatched} ticket(s) répartis vers ${d.organisation}`)}>
                 🚚 Répartir
               </button>
-              <span className="text-gray-300">|</span>
             </>
           )}
-          <select className="input max-w-[220px]" value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
-            <option value="">Affecter à une équipe…</option>
-            {eligibleEquipes.map((e) => (
-              <option key={e.id} value={e.id}>{e.name} ({e.open_tickets} en cours)</option>
-            ))}
-          </select>
-          <button className="btn-secondary" disabled={!assignTo}
-            onClick={() => bulk('/api/tickets/assign', { equipe_id: Number(assignTo) },
-              (d) => `${d.assigned} ticket(s) affectés à ${d.equipe}`)}>
-            Affecter
-          </button>
+          {/* L'affectation aux équipes revient au sous-traitant */}
+          {!percer && (
+            <>
+              <select className="input max-w-[220px]" value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
+                <option value="">Affecter à une équipe…</option>
+                {eligibleEquipes.map((e) => (
+                  <option key={e.id} value={e.id}>{e.name} ({e.open_tickets} en cours)</option>
+                ))}
+              </select>
+              <button className="btn-secondary" disabled={!assignTo}
+                onClick={() => bulk('/api/tickets/assign', { equipe_id: Number(assignTo) },
+                  (d) => `${d.assigned} ticket(s) affectés à ${d.equipe}`)}>
+                Affecter
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -166,16 +174,15 @@ function TicketsInner() {
               <th className="p-3">Client</th>
               <th className="p-3">Adresse</th>
               <th className="p-3">Échéance</th>
-              {percer && <th className="p-3">Sous-traitant</th>}
-              <th className="p-3">Équipe</th>
+              {percer ? <th className="p-3">Sous-traitant</th> : <th className="p-3">Équipe</th>}
               <th className="p-3">Statut</th>
               <th className="p-3">📷</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={10} className="p-6 text-center text-gray-500">Chargement…</td></tr>}
+            {loading && <tr><td colSpan={9} className="p-6 text-center text-gray-500">Chargement…</td></tr>}
             {!loading && tickets.length === 0 && (
-              <tr><td colSpan={10} className="p-6 text-center text-gray-500">
+              <tr><td colSpan={9} className="p-6 text-center text-gray-500">
                 Aucun ticket. Importez un fichier Excel pour commencer.
               </td></tr>
             )}
@@ -201,10 +208,11 @@ function TicketsInner() {
                   <div>{t.rdv_date || t.deadline || '—'}</div>
                   <SlaBadge state={t.sla_state} deadline={t.deadline} />
                 </td>
-                {percer && (
+                {percer ? (
                   <td className="p-3">{t.org_name || <span className="text-gray-400">Non réparti</span>}</td>
+                ) : (
+                  <td className="p-3">{t.equipe_name || <span className="text-gray-400">—</span>}</td>
                 )}
-                <td className="p-3">{t.equipe_name || <span className="text-gray-400">—</span>}</td>
                 <td className="p-3"><StatusBadge status={t.status} /></td>
                 <td className="p-3 text-center">{t.photo_count > 0 ? t.photo_count : ''}</td>
               </tr>

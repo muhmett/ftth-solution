@@ -33,9 +33,10 @@ export default function StockPage() {
     fetch('/api/materiel').then((r) => r.json()).then((d) => setMaterials(d.materials || []));
   }, []);
   useEffect(() => {
-    const q = orgId ? `?role=EQUIPE&org=${orgId}` : '?role=EQUIPE';
-    fetch('/api/users' + q).then((r) => r.json()).then((d) => setEquipes(d.users || []));
-  }, [orgId]);
+    // Percer n'attribue pas aux véhicules : il livre le dépôt de la société
+    if (percer) return;
+    fetch('/api/users?role=EQUIPE').then((r) => r.json()).then((d) => setEquipes(d.users || []));
+  }, [percer]);
 
   // Percer livre le dépôt ; le sous-traitant pilote tout le reste
   const kinds = percer ? ['ENTREE', 'AJUSTEMENT'] : Object.keys(MOVEMENT_KINDS);
@@ -323,8 +324,9 @@ export default function StockPage() {
                   </td>
                   <td className="py-2 font-medium">{m.label}</td>
                   <td className="py-2 text-right font-semibold whitespace-nowrap">{m.quantity} {m.unit}</td>
-                  <td className="py-2 text-xs text-gray-500">{m.equipe_name || 'Dépôt'}</td>
-                  {percer && <td className="py-2 text-xs text-gray-500">{m.org_name}</td>}
+                  {percer
+                    ? <td className="py-2 text-xs text-gray-500">{m.org_name}</td>
+                    : <td className="py-2 text-xs text-gray-500">{m.equipe_name || 'Dépôt'}</td>}
                   <td className="py-2 text-xs text-gray-400">
                     {m.ticket_reference || m.note || ''}
                   </td>

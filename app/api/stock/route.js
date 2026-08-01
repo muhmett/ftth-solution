@@ -31,7 +31,8 @@ export const GET = apiHandler(async (req) => {
     organisations,
     org_id: orgId,
     levels: stockLevels(orgId),
-    byTeam: stockByTeam(orgId),
+    // Percer voit ce qu'il reste chez la société, pas la dotation véhicule par véhicule
+    byTeam: percer ? [] : stockByTeam(orgId),
     alerts: lowStock(orgId),
   });
 });

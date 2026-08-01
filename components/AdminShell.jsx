@@ -20,7 +20,7 @@ export default function AdminShell({ user, children }) {
     { href: '/admin/facturation', label: 'Facturation', icon: '💰' },
     { href: '/admin/contrats', label: 'Contrats', icon: '📋' },
     percer && { href: '/admin/sous-traitants', label: 'Sous-traitants', icon: '🏢' },
-    { href: '/admin/equipes', label: 'Équipes', icon: '👷' },
+    { href: '/admin/equipes', label: percer ? 'Comptes' : 'Équipes', icon: '👷' },
   ].filter(Boolean);
 
   async function logout() {

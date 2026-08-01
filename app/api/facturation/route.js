@@ -35,5 +35,9 @@ export const GET = apiHandler(async (req) => {
 
   const statement = monthlyStatement(orgId, month);
   if (!statement) return Response.json({ error: 'Société introuvable' }, { status: 404 });
-  return Response.json({ organisations, months: availableMonths(orgId), ...statement });
+  // Percer facture une société : le détail reste au ticket, pas à l'équipe
+  const lines = percer
+    ? statement.lines.map(({ equipe_name, ...l }) => l)
+    : statement.lines;
+  return Response.json({ organisations, months: availableMonths(orgId), ...statement, lines });
 });

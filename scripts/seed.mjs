@@ -110,7 +110,7 @@ const T = (o) => ({
 const demo = [
   // En attente de répartition chez Percer
   T({ reference: 'ORD-2026-10010', type: 'FTTH', client_name: 'Rachid Benjelloun', client_phone: '0663456789', address: '45 Bd Zerktouni', zone: 'Gauthier', pbo: 'PBO-GA-007', nd: 'ND5522012', rdv_date: '2026-08-05 09:00' }),
-  T({ reference: 'ORD-2026-10011', type: 'PARTAGE_OUT', client_name: 'Hassan Chraibi', client_phone: '0665678901', address: 'Lot Yasmine 22', zone: 'Californie', pbo: 'PBO-CA-055', nd: 'ND5522013', operator: 'inwi', rdv_date: '2026-08-05 11:00' }),
+  T({ reference: 'ORD-2026-10011', type: 'PARTAGE_OUT', client_name: 'Abdellah Kettani', client_phone: '0665678901', address: 'Lot Yasmine 22', zone: 'Californie', pbo: 'PBO-CA-055', nd: 'ND5522013', operator: 'inwi', rdv_date: '2026-08-05 11:00' }),
   T({ reference: 'ORD-2026-10012', type: 'FTTH', client_name: 'Nadia Squalli', client_phone: '0667788990', address: '8 Rue Al Yamama', zone: 'Bourgogne', pbo: 'PBO-BO-019', nd: 'ND5522014', rdv_date: '2026-08-06 10:00' }),
   T({ reference: 'SAV-2026-20010', type: 'SAV', client_name: 'Driss Lamrani', client_phone: '0668899001', address: '17 Rue Jenner', zone: 'Belvédère', pbo: 'PBO-BE-101', nd: 'ND5510055', rdv_date: '2026-08-05 15:00' }),
 
