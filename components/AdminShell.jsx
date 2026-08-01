@@ -58,12 +58,18 @@ export default function AdminShell({ user, children }) {
             );
           })}
         </nav>
-        <div className="md:border-t md:border-gray-700 md:pt-4 flex items-center gap-2">
-          <div className="hidden md:block flex-1 min-w-0">
-            <div className="text-sm font-semibold truncate">{user.name}</div>
-            <div className="text-xs text-gray-400 truncate">{ROLES[user.role]}</div>
+        <div className="md:border-t md:border-gray-700 md:pt-4">
+          <div className="flex items-center gap-2">
+            <div className="hidden md:block flex-1 min-w-0">
+              <div className="text-sm font-semibold truncate">{user.name}</div>
+              <div className="text-xs text-gray-400 truncate">{ROLES[user.role]}</div>
+            </div>
+            <button onClick={logout} title="Déconnexion" className="text-gray-400 hover:text-white text-lg">⏻</button>
           </div>
-          <button onClick={logout} title="Déconnexion" className="text-gray-400 hover:text-white text-lg">⏻</button>
+          {/* Permet de vérifier quel build tourne réellement sur ce serveur */}
+          <div className="hidden md:block text-[10px] text-gray-600 mt-2 font-mono">
+            build {process.env.NEXT_PUBLIC_BUILD_COMMIT} · {process.env.NEXT_PUBLIC_BUILD_DATE}
+          </div>
         </div>
       </aside>
       <div className="relative flex-1 overflow-hidden">
