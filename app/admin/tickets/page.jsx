@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { TICKET_STATUS, TICKET_TYPES } from '@/lib/constants';
-import { TypeBadge, StatusBadge } from '@/components/Badges';
+import { TICKET_STATUS, TICKET_TYPES, SLA_STATES } from '@/lib/constants';
+import { TypeBadge, StatusBadge, SlaBadge } from '@/components/Badges';
 import { useIsPercer } from '@/components/UserContext';
 
 function TicketsInner() {
@@ -21,6 +21,7 @@ function TicketsInner() {
     status: sp.get('status') || '',
     type: sp.get('type') || '',
     org: sp.get('org') || '',
+    sla: sp.get('sla') || '',
     q: '',
     equipe: '',
   });
@@ -104,6 +105,12 @@ function TicketsInner() {
           <option value="">Toutes équipes</option>
           {equipes.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
         </select>
+        <select className="input max-w-[190px]" value={filters.sla}
+          onChange={(e) => setFilters({ ...filters, sla: e.target.value })}>
+          <option value="">Tous délais</option>
+          {Object.entries(SLA_STATES).filter(([k]) => k !== 'SANS_DELAI')
+            .map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
       </div>
 
       {selected.size > 0 && (
@@ -153,7 +160,7 @@ function TicketsInner() {
               <th className="p-3">Activité</th>
               <th className="p-3">Client</th>
               <th className="p-3">Adresse</th>
-              <th className="p-3">RDV</th>
+              <th className="p-3">Échéance</th>
               {percer && <th className="p-3">Sous-traitant</th>}
               <th className="p-3">Équipe</th>
               <th className="p-3">Statut</th>
@@ -185,7 +192,10 @@ function TicketsInner() {
                   <div className="text-xs text-gray-500">{t.client_phone}</div>
                 </td>
                 <td className="p-3 max-w-[200px] truncate" title={t.address}>{t.address || '—'}</td>
-                <td className="p-3 whitespace-nowrap">{t.rdv_date || '—'}</td>
+                <td className="p-3 whitespace-nowrap">
+                  <div>{t.rdv_date || t.deadline || '—'}</div>
+                  <SlaBadge state={t.sla_state} deadline={t.deadline} />
+                </td>
                 {percer && (
                   <td className="p-3">{t.org_name || <span className="text-gray-400">Non réparti</span>}</td>
                 )}

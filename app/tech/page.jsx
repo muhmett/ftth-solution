@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { TypeBadge, StatusBadge } from '@/components/Badges';
+import { TypeBadge, StatusBadge, SlaBadge } from '@/components/Badges';
+import PushToggle from '@/components/PushToggle';
 import { BLOCKAGE_REASONS } from '@/lib/constants';
 
 const TABS = [
@@ -27,6 +28,8 @@ export default function TechHome() {
 
   return (
     <div className="space-y-3">
+      <PushToggle />
+
       {/* Onglets */}
       <div className="flex gap-1 bg-white rounded-xl p-1 border border-gray-200">
         {TABS.map((t) => (
@@ -56,10 +59,11 @@ export default function TechHome() {
           </div>
           <div className="text-sm font-semibold">{t.client_name || 'Client non renseigné'}</div>
           <div className="text-sm text-gray-600">{t.address}{t.city ? `, ${t.city}` : ''}</div>
-          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500">
             {t.rdv_date && <span>📅 {t.rdv_date}</span>}
             {t.client_phone && <span>📞 {t.client_phone}</span>}
             {t.photo_count > 0 && <span>📷 {t.photo_count}</span>}
+            <SlaBadge state={t.sla_state} deadline={t.deadline} />
           </div>
           {t.status === 'BLOQUE' && t.blockage_reason && (
             <div className="mt-2 text-xs font-semibold text-red-600">

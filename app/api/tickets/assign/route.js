@@ -1,5 +1,6 @@
 import { getDb, addHistory } from '@/lib/db';
 import { requireUser, apiHandler, isPercer } from '@/lib/auth';
+import { notifyTicketEvent } from '@/lib/push';
 import { COORD_ROLES } from '@/lib/constants';
 
 // Affectation en masse à une équipe : { ticket_ids, equipe_id }
@@ -28,6 +29,7 @@ export const POST = apiHandler(async (req) => {
     for (const tid of ticket_ids) {
       if (update.run(equipe.id, Number(tid), equipe.org_id).changes) {
         addHistory(Number(tid), 'AFFECTATION', `Affecté à ${equipe.name}`, user.id);
+        notifyTicketEvent('AFFECTATION', Number(tid), equipe.id);
         count++;
       }
     }

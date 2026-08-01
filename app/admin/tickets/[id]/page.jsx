@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { TICKET_TYPES, BLOCKAGE_REASONS, PHOTO_TYPES } from '@/lib/constants';
-import { TypeBadge, StatusBadge } from '@/components/Badges';
+import { TypeBadge, StatusBadge, SlaBadge } from '@/components/Badges';
 import { useIsPercer } from '@/components/UserContext';
 
 export default function AdminTicketDetail() {
@@ -65,6 +65,7 @@ export default function AdminTicketDetail() {
         <h1 className="text-2xl font-black font-mono">{ticket.reference}</h1>
         <TypeBadge type={ticket.type} />
         <StatusBadge status={ticket.status} />
+        <SlaBadge state={ticket.sla_state} deadline={ticket.deadline} full />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -81,6 +82,7 @@ export default function AdminTicketDetail() {
               <Info label="PTO" value={ticket.pto} />
               <Info label="Opérateur (infra)" value={ticket.operator} />
               <Info label="RDV" value={ticket.rdv_date} />
+              <Info label="Échéance contractuelle" value={ticket.deadline} />
               <Info label="Activité" value={TICKET_TYPES[ticket.type]?.label} />
               {ticket.power_db != null && <Info label="Puissance mesurée" value={`${ticket.power_db} dB`} />}
               {ticket.router_sn && <Info label="S/N Routeur" value={ticket.router_sn} />}

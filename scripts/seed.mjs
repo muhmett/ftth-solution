@@ -31,6 +31,9 @@ const addTicket = db.prepare(`
     @nd,@operator,@rdv_date,@assigned_to,@dispatched_at,@created_by)`);
 const addHistory = db.prepare(
   'INSERT INTO ticket_history (ticket_id, action, detail, user_id) VALUES (?,?,?,?)');
+const addTerms = db.prepare(`
+  INSERT INTO contract_terms (org_id, ticket_type, unit_price, sla_hours, penalty_rate)
+  VALUES (?,?,?,?,?)`);
 
 // --- Sociétés ---
 const percerOrg = addOrg.run('Percer', 'DONNEUR_ORDRE', 'Direction production FTTH').lastInsertRowid;
@@ -48,6 +51,18 @@ addUser.run(ayline, 'Équipe 3 — Aïn Sebaâ', '0630000003', hash('equipe123')
 
 addUser.run(sotra, 'Coordinateur Sotra', '0644444444', hash('coord123'), 'ST_COORD', 'Rabat', '', '');
 const eq4 = addUser.run(sotra, 'Équipe 1 — Agdal', '0640000001', hash('equipe123'), 'EQUIPE', 'Rabat — Agdal', 'Anas Berrada', 'Younes Fassi').lastInsertRowid;
+
+// --- Conditions contractuelles (montants illustratifs, en MAD) ---
+const TERMS = {
+  // [prix unitaire, délai en heures, retenue en % si hors délai]
+  [ayline]: { FTTH: [180, 72, 10], PARTAGE_IN: [150, 72, 10], PARTAGE_OUT: [120, 72, 10], SAV: [90, 24, 20] },
+  [sotra]: { FTTH: [170, 72, 10], PARTAGE_IN: [140, 72, 10], PARTAGE_OUT: [110, 72, 10], SAV: [85, 24, 15] },
+};
+for (const [orgId, byType] of Object.entries(TERMS)) {
+  for (const [type, [price, sla, penalty]] of Object.entries(byType)) {
+    addTerms.run(Number(orgId), type, price, sla, penalty);
+  }
+}
 
 // --- Tickets ---
 const T = (o) => ({
@@ -98,6 +113,48 @@ const insert = db.transaction(() => {
     realized_at = datetime('now','-2 days'), validated_st_at = datetime('now','-1 day'),
     validated_st_by = (SELECT id FROM users WHERE phone = '0622222222')
     WHERE reference = 'ORD-2026-10005'`).run();
+
+  // Historique facturable du mois en cours : quelques recettes déjà prononcées,
+  // dont deux hors délai pour illustrer les retenues.
+  const billable = [
+    ['FAC-2026-0001', 'FTTH', ayline, eq1, 2, false],
+    ['FAC-2026-0002', 'FTTH', ayline, eq2, 4, false],
+    ['FAC-2026-0003', 'PARTAGE_IN', ayline, eq1, 6, true],
+    ['FAC-2026-0004', 'SAV', ayline, eq2, 8, false],
+    ['FAC-2026-0005', 'FTTH', ayline, eq1, 10, false],
+    ['FAC-2026-0006', 'SAV', ayline, eq2, 12, true],
+    ['FAC-2026-0007', 'FTTH', sotra, eq4, 3, false],
+    ['FAC-2026-0008', 'PARTAGE_OUT', sotra, eq4, 5, false],
+  ];
+  for (const [reference, type, org, equipe, daysAgo, late] of billable) {
+    const id = addTicket.run({
+      ...T({
+        reference, type, status: 'VALIDE', org_id: org, assigned_to: equipe,
+        client_name: 'Client facturé', address: 'Adresse client', zone: 'Casablanca',
+      }),
+      dispatched_at: null,
+    }).lastInsertRowid;
+    // L'échéance précède la réalisation quand l'intervention est hors délai
+    db.prepare(`UPDATE tickets SET
+      dispatched_at = datetime('now','-${daysAgo + 3} days'),
+      deadline      = datetime('now','-${daysAgo + (late ? 1 : -1)} days'),
+      realized_at   = datetime('now','-${daysAgo} days'),
+      validated_st_at = datetime('now','-${Math.max(0, daysAgo - 1)} days'),
+      validated_at  = datetime('now','-${Math.max(0, daysAgo - 1)} days'),
+      validated_by  = ${admin}, power_db = -18.9
+      WHERE id = ?`).run(id);
+    addHistory.run(id, 'RECETTE', 'Recette (démo)', admin);
+  }
+
+  // Échéance des tickets confiés à un sous-traitant : RDV client, sinon délai contractuel
+  db.prepare(`
+    UPDATE tickets SET deadline = COALESCE(
+      datetime(NULLIF(rdv_date, '')),
+      datetime(COALESCE(dispatched_at, created_at),
+        '+' || COALESCE((SELECT sla_hours FROM contract_terms c
+                         WHERE c.org_id = tickets.org_id AND c.ticket_type = tickets.type), 48) || ' hours')
+    )
+    WHERE org_id IS NOT NULL AND deadline IS NULL`).run();
 });
 insert();
 

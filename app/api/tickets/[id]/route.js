@@ -1,11 +1,14 @@
 import { getDb, addHistory, touchTicket } from '@/lib/db';
 import { requireUser, apiHandler, isPercer, isCoord, assertTicketAccess } from '@/lib/auth';
+import { refreshDeadline, slaSql } from '@/lib/contracts';
+import { notifyTicketEvent } from '@/lib/push';
 import { REQUIRED_PHOTOS, BLOCKAGE_REASONS } from '@/lib/constants';
 
 function loadTicket(db, id) {
   return db.prepare(`
     SELECT t.*, u.name AS equipe_name, u.phone AS equipe_phone, u.member1, u.member2,
-           o.name AS org_name, v.name AS validated_by_name, vs.name AS validated_st_by_name
+           o.name AS org_name, v.name AS validated_by_name, vs.name AS validated_st_by_name,
+           (${slaSql('t')}) AS sla_state
     FROM tickets t
     LEFT JOIN users u ON u.id = t.assigned_to
     LEFT JOIN organizations o ON o.id = t.org_id
@@ -61,6 +64,7 @@ export const PATCH = apiHandler(async (req, { params }) => {
       if (!org) return fail('Sous-traitant invalide');
       db.prepare(`UPDATE tickets SET org_id = ?, status = 'DISPATCHE', assigned_to = NULL,
         dispatched_at = datetime('now') WHERE id = ?`).run(org.id, id);
+      refreshDeadline(id);
       addHistory(id, 'REPARTITION', `Réparti vers ${org.name}`, user.id);
       break;
     }
@@ -74,6 +78,7 @@ export const PATCH = apiHandler(async (req, { params }) => {
       if (equipe.org_id !== ticket.org_id) return fail('Cette équipe appartient à une autre société');
       db.prepare("UPDATE tickets SET assigned_to = ?, status = 'AFFECTE' WHERE id = ?").run(equipe.id, id);
       addHistory(id, 'AFFECTATION', `Affecté à ${equipe.name}`, user.id);
+      notifyTicketEvent('AFFECTATION', id, equipe.id);
       break;
     }
     case 'start': {
@@ -141,6 +146,7 @@ export const PATCH = apiHandler(async (req, { params }) => {
       db.prepare(`UPDATE tickets SET status = 'AFFECTE', realized_at = NULL,
         validated_st_at = NULL, validated_st_by = NULL WHERE id = ?`).run(id);
       addHistory(id, 'REJET', `Rejeté par ${from} — ${body.comment || 'preuves insuffisantes'}`, user.id);
+      notifyTicketEvent('REJET', id, ticket.assigned_to, body.comment);
       break;
     }
     case 'block': {
@@ -159,7 +165,9 @@ export const PATCH = apiHandler(async (req, { params }) => {
       db.prepare(`UPDATE tickets SET status = ?, blockage_reason = '', blockage_comment = '',
         blocked_at = NULL, rdv_date = COALESCE(NULLIF(?, ''), rdv_date) WHERE id = ?`)
         .run(newStatus, body.rdv_date || '', id);
+      refreshDeadline(id);
       addHistory(id, 'REPLANIFICATION', body.comment || 'Ticket replanifié', user.id);
+      if (ticket.assigned_to) notifyTicketEvent('REPLANIFICATION', id, ticket.assigned_to);
       break;
     }
     case 'cancel': {
@@ -180,6 +188,7 @@ export const PATCH = apiHandler(async (req, { params }) => {
       if (!sets.length) return fail('Aucune modification');
       vals.push(id);
       db.prepare(`UPDATE tickets SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+      if (body.rdv_date !== undefined) refreshDeadline(id);
       addHistory(id, 'MODIFICATION', 'Informations mises à jour', user.id);
       break;
     }

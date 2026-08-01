@@ -49,13 +49,20 @@ sur **toutes** les lectures, y compris le téléchargement des photos — jamais
 - **Import Excel** du fichier opérateur, détection automatique des colonnes et du type d'activité.
 - **Répartition** : constitution de lots par zone ou activité, envoi en masse à un sous-traitant.
 - **Recette** : validation ou rejet des tickets déjà contrôlés, seule étape qui rend un ticket facturable.
-- **Pilotage** : vue consolidée par sous-traitant, alertes sur les blocages de plus de 24 h.
+- **Contrats** : prix unitaire, délai accordé et retenue de retard, par sous-traitant et par activité.
+- **Attachement mensuel** : décompte des recettes du mois valorisées au tarif contractuel, retenues
+  déduites, exportable en Excel (récapitulatif + détail ticket par ticket).
+- **Pilotage** : vue consolidée par sous-traitant, taux de respect des délais, alertes sur les
+  échéances dépassées et sur les blocages de plus de 24 h.
 - **Sous-traitants** : création et activation des sociétés partenaires.
 
 ### Sous-traitant
 - Reçoit ses lots automatiquement, sans échange de fichier.
 - **Affectation** aux équipes, en masse ou ticket par ticket, avec la charge en cours de chacune.
 - **Contrôle qualité interne** avant transmission à Percer.
+- **Attachement en miroir** : le même décompte que celui de Percer, en lecture seule — les écarts
+  se constatent en cours de mois, plus au moment de la facture.
+- **Conditions contractuelles** consultables (prix, délais, retenues).
 - **Équipes** : un compte par binôme, avec le nom des deux intervenants pour la traçabilité.
 - Import Excel disponible en repli si Percer n'est pas encore sur la plateforme.
 
@@ -68,7 +75,20 @@ sur **toutes** les lectures, y compris le téléchargement des photos — jamais
   - Mesure optique obligatoire, cohérence contrôlée (−30 à −8 dB)
 - **Déclaration de blocage** avec motif normalisé — le ticket remonte immédiatement à la
   coordination pour replanification au lieu de rester en attente.
+- **Notifications sur le téléphone** à l'affectation d'un ticket, au rejet et à la replanification.
+- Échéance et état du délai visibles sur chaque ticket.
 - Prise de photo directe par la caméra, installable sur Android.
+
+## Délais et facturation
+
+L'échéance d'un ticket est le **rendez-vous client** quand il est fixé, sinon la date de
+répartition augmentée du **délai contractuel** de l'activité. Elle est recalculée à chaque
+répartition, replanification ou changement de contrat. Un ticket réalisé après son échéance est
+marqué hors délai et subit la retenue prévue au contrat.
+
+L'attachement du mois retient les tickets dont **Percer a prononcé la recette** pendant ce mois :
+c'est la seule étape qui rend une intervention facturable. Comme les photos, les mesures et
+l'horodatage de chaque transition sont conservés, une ligne contestée se tranche sur pièces.
 
 ## Stack technique
 
@@ -114,15 +134,25 @@ depuis Chrome (« Ajouter à l'écran d'accueil »). Pour le Play Store, deux vo
 
 ```
 app/
-  api/            # auth, tickets, dispatch, import, photos, users, organisations, stats
-  admin/          # coordination : dashboard, tickets, répartition, sous-traitants, équipes
+  api/            # auth, tickets, dispatch, import, photos, users, organisations,
+                  # stats, contrats, facturation (+ export), push
+  admin/          # coordination : dashboard, tickets, répartition, facturation,
+                  # contrats, sous-traitants, équipes
   tech/           # interface équipe terrain (mobile)
-components/       # AdminShell, TechShell, Badges, FiberBackground, UserContext
-lib/              # schema.mjs (SQL), db.js (accès + migration), auth.js (portées), constants.js
-scripts/seed.mjs  # sociétés, comptes et tickets de démonstration
+components/       # AdminShell, TechShell, Badges, FiberBackground, UserContext, PushToggle
+lib/              # schema.mjs (SQL), db.js (accès + migration), auth.js (portées),
+                  # contracts.js (échéances), facturation.js (attachement), push.js, constants.js
+public/sw.js      # service worker des notifications
+scripts/seed.mjs  # sociétés, comptes, contrats et tickets de démonstration
 ```
+
+### Notifications
+
+Les clés VAPID sont générées au premier appel et conservées en base : aucune configuration n'est
+requise pour le développement. En production, définir `PUSH_SUBJECT` (adresse de contact) et
+servir l'application en HTTPS — le navigateur refuse les notifications autrement.
 
 ## Suite envisagée
 
-Facturation (grille tarifaire par sous-traitant, attachement mensuel exportable), suivi des
-délais contractuels et pénalités, notifications push, gestion du matériel.
+Gestion du matériel (PTO, routeurs, câble) consommé par équipe, export au format attendu par
+l'opérateur, et application Android empaquetée.

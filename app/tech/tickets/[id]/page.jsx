@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PHOTO_TYPES, REQUIRED_PHOTOS, BLOCKAGE_REASONS } from '@/lib/constants';
-import { TypeBadge, StatusBadge } from '@/components/Badges';
+import { TypeBadge, StatusBadge, SlaBadge } from '@/components/Badges';
 
 export default function TechTicketDetail() {
   const { id } = useParams();
@@ -105,11 +105,12 @@ export default function TechTicketDetail() {
       <div className="card p-4 space-y-1 text-sm">
         <div className="font-bold text-base">{ticket.client_name || 'Client non renseigné'}</div>
         <div className="text-gray-600">{ticket.address}{ticket.city ? `, ${ticket.city}` : ''}</div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 text-gray-700">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 text-gray-700">
           {ticket.client_phone && (
             <a href={`tel:${ticket.client_phone}`} className="text-brand-600 font-semibold">📞 {ticket.client_phone}</a>
           )}
           {ticket.rdv_date && <span>📅 {ticket.rdv_date}</span>}
+          <SlaBadge state={ticket.sla_state} deadline={ticket.deadline} />
         </div>
         <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
           {ticket.nd && <div><span className="text-gray-400">ND:</span> <b>{ticket.nd}</b></div>}

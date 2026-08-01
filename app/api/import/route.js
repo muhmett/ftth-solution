@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { getDb, addHistory } from '@/lib/db';
 import { requireUser, apiHandler, isPercer } from '@/lib/auth';
+import { refreshDeadline } from '@/lib/contracts';
 import { COORD_ROLES } from '@/lib/constants';
 
 // Champs cibles d'un ticket et mots-clés pour l'auto-détection des colonnes Excel
@@ -133,6 +134,7 @@ export const POST = apiHandler(async (req) => {
         get(row, 'operator'), get(row, 'rdv_date'), get(row, 'notes'), JSON.stringify(extra),
         batchId, user.id
       );
+      if (orgId) refreshDeadline(info.lastInsertRowid);
       addHistory(info.lastInsertRowid, 'CREATION', `Importé depuis ${file.name || 'Excel'}`, user.id);
       created++;
     }

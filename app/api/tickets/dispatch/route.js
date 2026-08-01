@@ -1,5 +1,6 @@
 import { getDb, addHistory } from '@/lib/db';
 import { requireUser, apiHandler } from '@/lib/auth';
+import { refreshDeadline } from '@/lib/contracts';
 import { PERCER_ROLES } from '@/lib/constants';
 
 // Répartition en masse d'un lot vers un sous-traitant : { ticket_ids, org_id }
@@ -22,6 +23,7 @@ export const POST = apiHandler(async (req) => {
   db.transaction(() => {
     for (const tid of ticket_ids) {
       if (update.run(org.id, Number(tid)).changes) {
+        refreshDeadline(Number(tid));
         addHistory(Number(tid), 'REPARTITION', `Réparti vers ${org.name}`, user.id);
         count++;
       }

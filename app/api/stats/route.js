@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/db';
 import { requireUser, apiHandler, ticketScope, isPercer } from '@/lib/auth';
+import { slaSql } from '@/lib/contracts';
 import { BLOCKED_ALERT_HOURS, COORD_ROLES } from '@/lib/constants';
 
 export const GET = apiHandler(async () => {
@@ -64,11 +65,45 @@ export const GET = apiHandler(async () => {
         WHERE u.role = 'EQUIPE' AND u.active = 1 AND u.org_id = ?
         GROUP BY u.id ORDER BY u.name`).all(user.org_id);
 
+  // Respect des délais : état courant + taux sur les 30 derniers jours
+  const bySla = {};
+  for (const r of db.prepare(
+    `SELECT (${slaSql('t')}) AS state, COUNT(*) AS n FROM tickets t
+     WHERE t.status NOT IN ('VALIDE','ANNULE')${AND} GROUP BY state`
+  ).all(...v)) {
+    bySla[r.state] = r.n;
+  }
+  const slaRate = db.prepare(`
+    SELECT
+      SUM(CASE WHEN t.realized_at <= t.deadline THEN 1 ELSE 0 END) AS respectes,
+      COUNT(*) AS total
+    FROM tickets t
+    WHERE t.realized_at IS NOT NULL AND t.deadline IS NOT NULL
+      AND t.realized_at >= datetime('now','-30 days')${AND}`).get(...v);
+
+  // Tickets en retard ou sur le point de l'être, à traiter en priorité
+  const slaAlerts = db.prepare(`
+    SELECT t.id, t.reference, t.type, t.client_name, t.deadline,
+      u.name AS equipe_name, o.name AS org_name, (${slaSql('t')}) AS sla_state
+    FROM tickets t
+    LEFT JOIN users u ON u.id = t.assigned_to
+    LEFT JOIN organizations o ON o.id = t.org_id
+    WHERE t.status NOT IN ('REALISE','VALIDE_ST','VALIDE','ANNULE')
+      AND (${slaSql('t')}) IN ('EN_RETARD','A_RISQUE')${AND}
+    ORDER BY t.deadline LIMIT 15`).all(...v);
+
   return Response.json({
     scope: percer ? 'PERCER' : 'ST',
     orgName: user.org_name,
     byStatus,
     byType,
+    bySla,
+    slaRate: {
+      respectes: slaRate?.respectes || 0,
+      total: slaRate?.total || 0,
+      pct: slaRate?.total ? Math.round((slaRate.respectes / slaRate.total) * 100) : null,
+    },
+    slaAlerts,
     blockedAlerts,
     toValidate,
     breakdown,

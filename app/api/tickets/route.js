@@ -1,6 +1,7 @@
 import { getDb, addHistory } from '@/lib/db';
 import { requireUser, apiHandler, ticketScope, isPercer, isCoord } from '@/lib/auth';
-import { COORD_ROLES } from '@/lib/constants';
+import { refreshDeadline, slaSql } from '@/lib/contracts';
+import { COORD_ROLES, SLA_STATES } from '@/lib/constants';
 
 const TYPES = ['FTTH', 'PARTAGE_IN', 'PARTAGE_OUT', 'SAV'];
 
@@ -37,9 +38,12 @@ export const GET = apiHandler(async (req) => {
     const like = `%${q}%`;
     vals.push(like, like, like, like, like);
   }
+  const sla = sp.get('sla');
+  if (sla && SLA_STATES[sla]) where.push(`(${slaSql('t')}) = '${sla}'`);
 
   const sql = `
     SELECT t.*, u.name AS equipe_name, o.name AS org_name,
+      (${slaSql('t')}) AS sla_state,
       (SELECT COUNT(*) FROM ticket_photos p WHERE p.ticket_id = t.id) AS photo_count
     FROM tickets t
     LEFT JOIN users u ON u.id = t.assigned_to
@@ -49,7 +53,7 @@ export const GET = apiHandler(async (req) => {
       CASE t.status WHEN 'BLOQUE' THEN 0 WHEN 'REALISE' THEN 1 WHEN 'VALIDE_ST' THEN 2
         WHEN 'EN_COURS' THEN 3 WHEN 'AFFECTE' THEN 4 WHEN 'DISPATCHE' THEN 5
         WHEN 'NOUVEAU' THEN 6 ELSE 7 END,
-      t.rdv_date, t.updated_at DESC
+      COALESCE(NULLIF(t.deadline, ''), t.rdv_date), t.updated_at DESC
     LIMIT 500`;
   return Response.json({ tickets: getDb().prepare(sql).all(...vals) });
 });
@@ -73,6 +77,7 @@ export const POST = apiHandler(async (req) => {
     b.city || '', b.zone || '', b.pbo || '', b.pto || '', b.nd || '', b.operator || '',
     b.rdv_date || '', b.notes || '', status, user.id
   );
+  if (orgId) refreshDeadline(info.lastInsertRowid);
   addHistory(info.lastInsertRowid, 'CREATION', 'Ticket créé manuellement', user.id);
   return Response.json({ id: info.lastInsertRowid }, { status: 201 });
 });

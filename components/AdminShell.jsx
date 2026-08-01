@@ -16,6 +16,8 @@ export default function AdminShell({ user, children }) {
     { href: '/admin/tickets', label: 'Tickets', icon: '🎫' },
     percer && { href: '/admin/repartition', label: 'Répartition', icon: '🚚' },
     { href: '/admin/import', label: 'Import Excel', icon: '📥' },
+    { href: '/admin/facturation', label: 'Facturation', icon: '💰' },
+    { href: '/admin/contrats', label: 'Contrats', icon: '📋' },
     percer && { href: '/admin/sous-traitants', label: 'Sous-traitants', icon: '🏢' },
     { href: '/admin/equipes', label: 'Équipes', icon: '👷' },
   ].filter(Boolean);
